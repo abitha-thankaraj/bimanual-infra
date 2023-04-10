@@ -1,4 +1,3 @@
 name: bimanual-infra
 channels:
   - defaults
-prefix: /home/robotlab/miniconda3/envs/bimanual-infra
