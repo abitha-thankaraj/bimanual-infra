@@ -2,7 +2,7 @@ import time
 import pygame
 import argparse
 
-from robot import XArm
+from bimanual.hardware.robot import XArm
 
 class Joy:
 
