@@ -102,29 +102,6 @@ class XArm:
 		self.set_position(pos)
 		if open_gripper and not self.keep_gripper_closed:
 			self.open_gripper_fully()
-	
-	def set_random_pos(self):
-		self.clear_errors()
-		self.set_mode_and_state()
-		pos = self.get_position()
-		
-		# Move up
-		pos[2] = self.z_limit[1]
-		self.set_position(pos)
-
-		# Set random pos
-		x_disp = self.low_range[0] + np.random.rand()*(self.high_range[0] - self.low_range[0])
-		y_disp = self.low_range[1] + np.random.rand()*(self.high_range[1] - self.low_range[1])
-		z_disp = self.low_range[2] + np.random.rand()*(self.high_range[2] - self.low_range[2])
-		
-		pos[0] = self.home[0] + x_disp * np.random.choice([-1,1])		# Here we sample in a square ring around the home 
-		pos[1] = self.home[1] + y_disp * np.random.choice([-1,1])		# Here we sample in a square ring around the home 
-		pos[2] = self.home[2] + z_disp if not self.highest_start else self.z_limit[1] 									# For z we jsut sample from [a,b]
-		self.set_position(pos)
-		if self.keep_gripper_closed:
-			self.close_gripper_fully()
-		else:
-			self.open_gripper_fully()
 
 	def move_to_zero(self):
 		pos = self.get_position()

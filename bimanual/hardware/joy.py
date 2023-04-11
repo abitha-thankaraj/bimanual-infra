@@ -1,5 +1,6 @@
 import time
 import pygame
+import argparse
 
 from robot import XArm
 
@@ -7,6 +8,7 @@ class Joy:
 
 	def __init__(self,
 				 arm,
+				 joy_id=0,
 				 scale_factor_pos=0.3, 
 				 scale_factor_gripper=300, 
 				 scale_factor_rotation=120, #0.1,
@@ -16,7 +18,7 @@ class Joy:
 				 is_radian=False):
 
 		pygame.init()
-		self.joy = pygame.joystick.Joystick(0)
+		self.joy = pygame.joystick.Joystick(joy_id)
 		self.joy.init()
 		self.goal_pos = [1.73,0.09,0.2]
 		self.global_mov = [-1,5,0]
@@ -278,7 +280,14 @@ class Joy:
 		return angles[6]
 
 if __name__ == "__main__":
-		joy = Joy(arm=XArm(),
+		import argparse
+		parser = argparse.ArgumentParser()
+		parser.add_argument("--ip", type=str, default="192.168.86.230")
+		parser.add_argument("--joyid", type=int, default=0)
+		args = parser.parse_args()
+		
+		joy = Joy(arm=XArm(ip=args.ip),
+	    		joy_id=args.joyid,
 	    		scale_factor_pos=0.15,
 				scale_factor_gripper=50, 
 				scale_factor_rotation=120,
@@ -287,3 +296,7 @@ if __name__ == "__main__":
 		while(True):
 			joy.detect_event()
 			pos, action = joy.move()
+
+
+# python joy.py --ip=192.168.86.216
+# python joy.py --joyid=1
