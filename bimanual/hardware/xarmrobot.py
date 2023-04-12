@@ -40,15 +40,7 @@ class Robot(XArmAPI):
                          do_not_open=do_not_open)
         
         self._control_mode = robot_control_mode
-        
-        self._message_queue = mp.Queue()
-        self._start_moving_thread = mp.Process(target=self._start_moving, args=(self._message_queue,))
-        self._control_frequency = None # TODO; measure control frequency for each box
-        self._control_timeperiod = 1./self._control_frequency
 
-        self.home_target = home_target
-        
-        
         # Tracking message queue
 
         # Last message received by the robot
@@ -57,6 +49,17 @@ class Robot(XArmAPI):
         self._last_sent_msg_ts = mp.Value("d", time.time(), lock=False) # Single process access; no need for lock; Makes process faster.
         # Last message sent to the message queue by the calling process
         self._last_queued_msg = None # TODO : Implement this as mp object; use BaseManager;
+
+
+        self._message_queue = mp.Queue()
+        self._start_moving_thread = mp.Process(target=self._start_moving, args=(self._message_queue, self._last_sent_msg_ts, self._last_received_msg))
+        self._control_frequency = None # TODO; measure control frequency for each box
+        self._control_timeperiod = 1./self._control_frequency
+
+        self.home_target = home_target
+        
+        
+
         
 
     def reset(self, home = False):
@@ -121,18 +124,18 @@ class Robot(XArmAPI):
         self._message_queue.put(move_msg)
         self._last_queued_msg = move_msg
 
-    def _start_moving(self, queue, _last_sent_msg_ts, _last_received_msg): #TODO: Add args for _last_sent_msg_ts; 
+    def _start_moving(self, queue, last_sent_msg_ts, last_received_msg): #TODO: Add args for _last_sent_msg_ts; 
         while True:
             # Send message to robot at control frequency
-            if time.time() - self._last_sent_msg_ts > self._control_timeperiod:
+            if time.time() - last_sent_msg_ts > self._control_timeperiod:
                 if not queue.empty():
                     move_msg = queue.get()
                     if move_msg.is_terminal():
                         break
                     #TODO : Move to target check for tolerance in step_size. - No; move this to the gym environment.
                     self.move_cmd(*move_msg.target, **vars(move_msg))
-                    self._last_sent_msg_ts = time.time()
-                    self._last_received_msg = move_msg
+                    last_sent_msg_ts = time.time()
+                    last_received_msg = move_msg
             else:
                 time.sleep(self._control_timeperiod - 0.0001)
     
