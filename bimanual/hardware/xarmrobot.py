@@ -16,17 +16,21 @@ class MoveMessage():
         return self.target is None
 
 class CartesianMoveMessage(MoveMessage):
-    def __init__(self, target, speed=100, acceleration=100):
+    def __init__(self, target, speed=100, acceleration=100, relative=False, wait = False, is_radian=True):
         super(CartesianMoveMessage, self).__init__(target)
         self.speed = speed
-        self.acceleration = acceleration
+        self.mvacc = acceleration
+        self.relative = relative
+        self.wait = wait # Default async calls; do not wait for robot to finish moving.
+        self.is_radian = is_radian
+
 
 class JointMoveMessage(MoveMessage):
     def __init__(self, target, speed=100, acceleration=100):
         super(JointMoveMessage, self).__init__(target)
         self.speed = speed
-        self.acceleration = acceleration
-
+        self.mvacc = acceleration
+        # TODO : Verify all parameters for set_servo_angle_j.
 
 class Robot(XArmAPI):
     def __init__(self, ip, do_not_open=False, 
@@ -39,9 +43,10 @@ class Robot(XArmAPI):
         self._control_mode = robot_control_mode
         
         self._message_queue = mp.Queue()
-        self._start_moving_thread = mp.Process(target=self._start_moving)
+        self._start_moving_thread = mp.Process(target=self._start_moving, args=(self._message_queue,))
         self._control_frequency = None # TODO; measure control frequency for each box
-        self._control_timeperiod = 1./ self._control_frequency
+        self._control_timeperiod = 1./self._control_frequency
+        
         
         # Tracking message queue
 
@@ -66,15 +71,16 @@ class Robot(XArmAPI):
             self.home_robot()
     
     def connect(self):
+        #TODO: Start all mp processes and context managed objects here.
         self._start_moving_thread.start()
         self.reset(home=True)
     
-
     def _set_move_command(self):
         if self._control_mode == RobotControlMode.CARTESIAN_POSITION:
             self.move_cmd = self.set_position
         elif self._control_mode == RobotControlMode.JOINT_POSITION:
-            self.move_cmd = self.set_servo_angle_j
+            raise NotImplementedError("Not implemented for control mode: {}".format(self._control_mode))
+            # self.move_cmd = self.set_servo_angle_j #TODO: Verify this
         else:
             raise NotImplementedError("Not implemented for control mode: {}".format(self._control_mode))
 
@@ -92,11 +98,10 @@ class Robot(XArmAPI):
             self._start_moving_thread.join()
         
         # TODO: Close context manager
-
         self.disconnect()
 
     @property
-    def last_sent_target(self):
+    def last_queued_target(self):
         return self._last_queued_msg.target
     
     @property
@@ -110,21 +115,20 @@ class Robot(XArmAPI):
         # Add target to message queue. 
         # TODO: Should this be an atomic operation (combined update of put and)?
         self._message_queue.put(move_msg)
-        self._last_received_msg = move_msg
+        self._last_queued_msg = move_msg
 
-    def _start_moving(self): #TODO: Add args for _last_sent_msg_ts; 
+    def _start_moving(self, queue, _last_sent_msg_ts, _last_received_msg): #TODO: Add args for _last_sent_msg_ts; 
         while True:
             # Send message to robot at control frequency
             if time.time() - self._last_sent_msg_ts > self._control_timeperiod:
-                if not self._message_queue.empty():
-                    move_msg = self._message_queue.get()
+                if not queue.empty():
+                    move_msg = queue.get()
                     if move_msg.is_terminal():
                         break
                     #TODO : Move to target check for tolerance in step_size. - No; move this to the gym environment.
-                    self.move_cmd(**move_msg.target,speed = move_msg.speed, mvacc=move_msg.acceleration,
-                                   wait=False, relative = False) #TODO: Add relative flag
+                    self.move_cmd(*move_msg.target, **vars(move_msg))
                     self._last_sent_msg_ts = time.time()
-                    self._last_queued_msg = move_msg
+                    self._last_received_msg = move_msg
             else:
                 time.sleep(self._control_timeperiod - 0.0001)
     
