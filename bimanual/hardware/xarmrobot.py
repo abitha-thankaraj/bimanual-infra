@@ -24,7 +24,6 @@ class CartesianMoveMessage(MoveMessage):
         self.wait = wait # Default async calls; do not wait for robot to finish moving.
         self.is_radian = is_radian
 
-
 class JointMoveMessage(MoveMessage):
     def __init__(self, target, speed=100, acceleration=100):
         super(JointMoveMessage, self).__init__(target)
@@ -35,7 +34,7 @@ class JointMoveMessage(MoveMessage):
 class Robot(XArmAPI):
     def __init__(self, ip, do_not_open=False, 
                  robot_control_mode=RobotControlMode.CARTESIAN_POSITION, 
-                 is_radian=True):
+                 is_radian=True, home_target = None):
         super(Robot, self).__init__(port=ip,
                          is_radian=is_radian,
                          do_not_open=do_not_open)
@@ -46,6 +45,8 @@ class Robot(XArmAPI):
         self._start_moving_thread = mp.Process(target=self._start_moving, args=(self._message_queue,))
         self._control_frequency = None # TODO; measure control frequency for each box
         self._control_timeperiod = 1./self._control_frequency
+
+        self.home_target = home_target
         
         
         # Tracking message queue
@@ -109,7 +110,10 @@ class Robot(XArmAPI):
         return self._last_received_msg.target
     
     def home_robot(self):
-        pass
+        self.move(MoveMessage(self.home_target))
+
+    def stop_robot(self):
+        self.move(MoveMessage(None))
 
     def move(self, move_msg):
         # Add target to message queue. 
