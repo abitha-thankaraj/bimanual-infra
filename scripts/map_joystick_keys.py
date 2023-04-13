@@ -1,9 +1,13 @@
 import pygame
 import argparse
+import os
+import sys
+os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 def test_joystick(joystick_number):
     print("Initializing joystick... Press and key on keyboard to exit.")
     pygame.init()
+
 
     joy = pygame.joystick.Joystick(joystick_number)
     joy.init()
@@ -13,14 +17,19 @@ def test_joystick(joystick_number):
             events = pygame.event.get()
             for event in events:
                 if event.type == pygame.JOYAXISMOTION:
+                    print(event.type)
                     print(event.dict, event.joy, event.axis, event.value)
                 elif event.type == pygame.JOYBALLMOTION:
+                    print(event.type)
                     print(event.dict, event.joy, event.ball, event.rel)
                 elif event.type == pygame.JOYBUTTONDOWN:
+                    print(event.type)
                     print(event.dict, event.joy, event.button, 'pressed')
                 elif event.type == pygame.JOYBUTTONUP:
+                    print(event.type)
                     print(event.dict, event.joy, event.button, 'released')
                 elif event.type == pygame.JOYHATMOTION:
+                    print(event.type)
                     print(event.dict, event.joy, event.hat, event.value)
 
 
