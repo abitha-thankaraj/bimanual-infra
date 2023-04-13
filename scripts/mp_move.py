@@ -1,8 +1,9 @@
 import time
-from xarm.wrapper import XArmAPI
+from xarm import XArmAPI
 import multiprocessing as mp
 from bimanual.hardware.robot.xarmrobot import register_ctx, CustomManager, CartesianMoveMessage
 from ctypes import c_double
+from keyboard_ctrl import keyboard_control
 
 def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
     # Initialize xArm API
@@ -15,7 +16,18 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
     arm.set_mode(0)
     arm.set_state(0)
     arm.move_gohome(wait=True)
-    while True:
+    # time.sleep(0.1)
+    status, pose = arm.get_position_aa()
+
+    assert status==0, "Failed to get robot position"
+    print("Robot position: {}".format(pose))
+    # exit()
+    arm.set_mode(1)
+    arm.set_state(0)
+
+    time.sleep(0.1)
+
+    while True: # Use a lock instead
         if time.time() - last_sent_msg_ts.value > control_timeperiod:
                
             if not queue.empty():
@@ -29,8 +41,13 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
                 print(vars(move_msg))
 
                 # y = bot.get_position()
-                x = arm.set_position(*move_msg.target, relative=True, wait=False)
-                print("Robot set_position returns: {}".format(x))
+                for i in range(len(move_msg.target)):
+                    pose[i]+=move_msg.target[i]
+                print("Sending robot to: {}".format(pose))
+                x = arm.set_servo_cartesian_aa(move_msg.target, wait=False, relative=True, mvacc=200, speed=100)
+                print("Robot set_servo_cartesian returns: {}".format(x))
+                # x = arm.set_position(*move_msg.target, relative=True, wait=False)
+                # print("Robot set_position returns: {}".format(x))
 
                 last_sent_msg_ts = c_double(time.time())
                 last_sent_msg = move_msg
@@ -41,31 +58,10 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
                 time.sleep(0.001)
         
         
-        if not queue.empty():
-            print("Sending message to robot: {}".format(queue.qsize()))
-            move_msg = queue.get()
-            if move_msg.is_terminal():
-                break
-            #TODO : Move to target check for tolerance in step_size. - No; move this to the gym environment.
-            # print(vars(self))
-            print(move_msg.target)
-            print(vars(move_msg))
-
-            # y = arm.get_position()
-            # print("Robot position: {}".format(y))
-
-            last_sent_msg_ts = c_double(time.time())
-            # print(last_received_msg.target)
-            last_received_msg = move_msg
-            x = arm.set_position(*move_msg.target, relative=True, wait=True)
-            arm.set_servo_cartesian
-            print("Robot command returned: {}".format(x))
-        else:
-            time.sleep(1)
-
+        
 if __name__ == "__main__":
 
-    control_frequency = 100# TODO; measure control frequency for each box. COmmands should be sent at 30-250. If <30 - choppy; if>250 drop frames. Deatils in manual:
+    control_frequency = 90# TODO; measure control frequency for each box. COmmands should be sent at 30-250. If <30 - choppy; if>250 drop frames. Deatils in manual:
     control_timeperiod = 1./control_frequency
 
     register_ctx()
@@ -82,11 +78,25 @@ if __name__ == "__main__":
     moving_process = mp.Process(target=move_robot, args=(message_queue, last_sent_msg_ts, last_queued_msg, control_timeperiod), name = "move_proc")
 
     moving_process.start()
+    #TODO: Lower control frequency to stop messages from dropping; I suspect that this is what causes the drift
 
-    dummy_msg = CartesianMoveMessage([5, 0, 0, 0, 0, 0], relative =True, wait=False)
-    for _ in range(10):
-        message_queue.put(dummy_msg)
+    # dummy_msg = CartesianMoveMessage([2, 0, 0, 0, 0, 0], relative =True, wait=False)
 
+
+    # for i in range(200):
+    #     for _ in range(30):
+    #         message_queue.put(CartesianMoveMessage([2, 0, 0, 0, 0, 0], relative =True, wait=False))
+    #     for _ in range(30):
+    #         message_queue.put(CartesianMoveMessage([0, -2, 0, 0, 0, 0], relative =True, wait=False))
+    #     for _ in range(30):
+    #         message_queue.put(CartesianMoveMessage([-2, 0, 0, 0, 0, 0], relative =True, wait=False))
+    #     for _ in range(30):
+    #         message_queue.put(CartesianMoveMessage([0, 2, 0, 0, 0, 0], relative =True, wait=False))
+    
+
+
+    keyboard_control(message_queue)
+    time.sleep(5)
     from IPython import embed; embed()
     moving_process.join()
     exit()
