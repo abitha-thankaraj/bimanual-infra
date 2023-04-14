@@ -83,7 +83,7 @@ def keyboard_control(queue:Queue):
     running = True
 
     latest_ts = time.time()
-    send_freq = 200
+    send_freq = 50
 
     while running:
         for event in pygame.event.get():
@@ -111,6 +111,12 @@ def keyboard_control(queue:Queue):
                 elif event.key == pygame.K_RIGHT:
                     rel_pose[1] = 0
                     print("Left key released")
+                elif event.key == pygame.K_UP:
+                    rel_pose[0] = 0
+                    print("Left key pressed")
+                elif event.key == pygame.K_DOWN:
+                    rel_pose[0] = 0
+                    print("Left key pressed")
         if time.time() - latest_ts > (1/send_freq):
             print("Sending to queue")
             if sum(rel_pose) ==0:

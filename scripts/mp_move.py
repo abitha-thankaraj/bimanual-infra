@@ -44,8 +44,26 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
                 for i in range(len(move_msg.target)):
                     pose[i]+=move_msg.target[i]
                 print("Sending robot to: {}".format(pose))
+                # x = arm.set_servo_cartesian_aa(pose, wait=False, relative=False, mvacc=200, speed=100)
+
+                if pose[0]>406 or pose[0]<206 or pose[1]>200 or pose[1]<-200:
+                    print("Robot out of bounds")
+                    if pose[0]>406:
+                        pose[0]=406
+                    elif pose[0] < 206:
+                        pose[0]=206
+                    if pose[1]>200:
+                        pose[1]=200
+                    elif pose[1] < -200:
+                        pose[1]=-200
+                    
+                    continue
+
                 x = arm.set_servo_cartesian_aa(move_msg.target, wait=False, relative=True, mvacc=200, speed=100)
                 print("Robot set_servo_cartesian returns: {}".format(x))
+                if x!=0:
+                    print("Failed to set robot position")
+                    break
                 # x = arm.set_position(*move_msg.target, relative=True, wait=False)
                 # print("Robot set_position returns: {}".format(x))
 
@@ -84,13 +102,13 @@ if __name__ == "__main__":
 
 
     # for i in range(200):
-    #     for _ in range(30):
+    #     for _ in range(60):
     #         message_queue.put(CartesianMoveMessage([2, 0, 0, 0, 0, 0], relative =True, wait=False))
-    #     for _ in range(30):
+    #     for _ in range(60):
     #         message_queue.put(CartesianMoveMessage([0, -2, 0, 0, 0, 0], relative =True, wait=False))
-    #     for _ in range(30):
+    #     for _ in range(60):
     #         message_queue.put(CartesianMoveMessage([-2, 0, 0, 0, 0, 0], relative =True, wait=False))
-    #     for _ in range(30):
+    #     for _ in range(60):
     #         message_queue.put(CartesianMoveMessage([0, 2, 0, 0, 0, 0], relative =True, wait=False))
     
 
