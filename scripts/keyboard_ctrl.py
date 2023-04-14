@@ -93,10 +93,10 @@ def keyboard_control(queue:Queue):
                     print("Escape key")
                     running = False
                 elif event.key == pygame.K_UP:
-                    rel_pose[0] = 0.5
+                    rel_pose[0] = 1
                     print("Left key pressed")
                 elif event.key == pygame.K_DOWN:
-                    rel_pose[0] = -0.5
+                    rel_pose[0] = -1
                     print("Left key pressed")
                 elif event.key == pygame.K_LEFT:
                     rel_pose[1] = -1
@@ -111,6 +111,10 @@ def keyboard_control(queue:Queue):
                 elif event.key == pygame.K_RIGHT:
                     rel_pose[1] = 0
                     print("Left key released")
-            if time.time() - (1/latest_ts) > (1/send_freq):
-                print("Adding to queue")
-                queue.put(CartesianMoveMessage(target=rel_pose, wait=False, relative=True))
+        if time.time() - latest_ts > (1/send_freq):
+            print("Sending to queue")
+            if sum(rel_pose) ==0:
+                continue
+            print("Adding to queue")
+            queue.put(CartesianMoveMessage(target=rel_pose, wait=False, relative=True))
+            latest_ts = time.time()
