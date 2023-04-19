@@ -16,11 +16,12 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
     arm.set_mode(0)
     arm.set_state(0)
     arm.move_gohome(wait=True)
-    # time.sleep(0.1)
+    time.sleep(0.1)
+    
     status, pose = arm.get_position_aa()
-
     assert status==0, "Failed to get robot position"
     print("Robot position: {}".format(pose))
+    
     # exit()
     arm.set_mode(1)
     arm.set_state(0)
