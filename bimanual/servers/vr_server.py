@@ -2,7 +2,13 @@ import zmq
 import time
 import multiprocessing as mp
 import numpy as np
-from bimanual.hardware.robot.xarmrobot import CartesianMoveMessage
+from xarm import XArmAPI
+from ctypes import c_double
+import pandas as pd
+from bimanual.hardware.robot.xarmrobot import  register_ctx, CustomManager, CartesianMoveMessage
+from bimanual.utils.debug_utils import DebugTimer 
+
+
 
 SCALE_FACTOR = 1000
 CONTROL_FREQ = 90.
@@ -58,21 +64,15 @@ def start_server(queue):
             _ , right_pose = parse_pose_message(message)
 
             if time.time() - last_ts >= CONTROL_TIME_PERIOD:
-
                 rel_right_pose[0] = (right_pose[0] - init_right_pos[0]) * SCALE_FACTOR
-                
+                rel_right_pose[1] = (right_pose[1] - init_right_pos[1]) * SCALE_FACTOR
+            
                 # print(np.linalg.norm(rel_right_pose[:3]))
                 # print("Sending to robot")
                 queue.put(CartesianMoveMessage(target=rel_right_pose[:3] + [0., 0., 0.], wait=False, relative=True)) #For now, only consider the position
 
             socket.send_string("OK: {}".format(time.time()))
 
-
-import time
-from xarm import XArmAPI
-import multiprocessing as mp
-from bimanual.hardware.robot.xarmrobot import register_ctx, CustomManager, CartesianMoveMessage
-from ctypes import c_double
 
 def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
     # Initialize xArm API
@@ -98,20 +98,25 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
 
     time.sleep(0.1)
 
-    while True: # Use a lock instead
+    debug_id = 0
+    df = pd.DataFrame(columns=['id', 'get_current_pose_time', 'current_pose', 'set_des_pose_time', 'des_pose'])
+    debug_record = {
+        'id' : debug_id, 
+        'get_current_pose_time' : None,
+        'current_pose' : None, 
+        'set_des_pose_time': None, 
+        'des_pose' : None
+    }
+
+    while True: 
         if (time.time() - last_sent_msg_ts.value) > control_timeperiod:
-            # print(queue.empty())
 
             if not queue.empty():
                 print("Sending message to robot: {}".format(queue.qsize()))
                 move_msg = queue.get()
-                # print(move_msg)
+
                 if move_msg.is_terminal():
                     break
-                #TODO : Move to target check for tolerance in step_size. - No; move this to the gym environment.
-                # print(vars(self))
-                # print(move_msg.target)
-                # print(vars(move_msg))
 
                 # y = bot.get_position()
                 for i in range(len(move_msg.target)):
@@ -119,11 +124,20 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
                 # print("Sending robot to: {}".format(pose))
                 # x = arm.set_servo_cartesian_aa(pose, wait=False, relative=False, mvacc=200, speed=100)
 
+                # ---------- Debug ----------- #
+                debug_id += 1 # may not need this; df has ordering
+                debug_record['id'] = debug_id
+                # ---------------------------- #
                 
-
                 current_pose = arm.get_position_aa()[1]
+
+                # ---------- Debug ----------- #
+                debug_record['get_current_pose_time'] = time.time()
+                debug_record['current_pose'] = current_pose
+                # ---------------------------- #
+                                
                 delta_pose = np.array(target_pose[:3]) - np.array( current_pose[:3])
-                des_pose = (np.clip( delta_pose, -1, 1) + np.array( current_pose[:3])).tolist() + current_pose[3:]
+                des_pose = (np.clip( delta_pose, -5, 5) + np.array( current_pose[:3])).tolist() + current_pose[3:]
 
                 if des_pose[0] > 406:
                     des_pose[0]=406
@@ -135,7 +149,15 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
                     des_pose[1]=-200
 
                 print(des_pose)
-                x = arm.set_servo_cartesian_aa( des_pose, wait=False, relative=False, mvacc=100, speed=100)
+                x = arm.set_servo_cartesian_aa( des_pose, wait=False, relative=False, mvacc=1000, speed=200)
+                # ---------- Debug ----------- #
+                debug_record['set_des_pose_time'] = time.time()
+                debug_record['des_pose'] = des_pose
+                
+                new_row = pd.DataFrame(debug_record)
+                df = pd.concat([df, new_row])
+                # ---------------------------- #
+
 
                 # x = arm.set_servo_cartesian_aa(move_msg.target, wait=False, relative=True, mvacc=50, speed=50)
                 print("Robot set_servo_cartesian returns: {}".format(x))
@@ -148,6 +170,12 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
                 last_sent_msg_ts = c_double(time.time())
                 last_sent_msg = move_msg
                 # print("last_sent_msg: {}".format(last_sent_msg.target))
+
+                # ---------- Debug ----------- #
+                print("Writing to debug.csv")
+                if debug_id % 200 == 0:
+                    df.to_csv('debug.csv', mode='w')
+                # ---------------------------- #
 
 
             else:
