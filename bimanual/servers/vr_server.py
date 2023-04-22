@@ -32,7 +32,7 @@ def start_server(queue):
 
     start_teleop = False
     prev_left_pos, prev_right_pos = None, None
-    init_pos = False
+    init_pos_flag = False
 
     rel_left_pose = [0. for  _ in range(7)]
     rel_right_pose = [0. for  _ in range(7)]
@@ -112,17 +112,13 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
         if (time.time() - last_sent_msg_ts.value) > control_timeperiod:
 
             if not queue.empty():
-                print("Sending message to robot: {}".format(queue.qsize()))
                 move_msg = queue.get()
 
                 if move_msg.is_terminal():
                     break
 
-                # y = bot.get_position()
                 for i in range(len(move_msg.target)):
                     target_pose[i] = move_msg.target[i] + home_pose[i]
-                # print("Sending robot to: {}".format(pose))
-                # x = arm.set_servo_cartesian_aa(pose, wait=False, relative=False, mvacc=200, speed=100)
 
                 # ---------- Debug ----------- #
                 debug_id += 1 # may not need this; df has ordering
@@ -138,6 +134,7 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
                                 
                 delta_pose = np.array(target_pose[:3]) - np.array( current_pose[:3])
                 des_pose = (np.clip( delta_pose, -5, 5) + np.array( current_pose[:3])).tolist() + current_pose[3:]
+
 
                 if des_pose[0] > 406:
                     des_pose[0]=406
