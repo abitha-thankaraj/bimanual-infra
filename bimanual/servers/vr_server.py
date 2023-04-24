@@ -78,7 +78,7 @@ def parse_pose_message(message):
 
 
 
-def start_server(queue):
+def start_server(left_queue, right_queue):
     # Set up the ZeroMQ context
     context = zmq.Context()
 
@@ -140,7 +140,7 @@ def start_server(queue):
         elif start_teleop == True:
             
             # Parse the message
-            _ , right_pose = parse_pose_message(message)
+            left_pose , right_pose = parse_pose_message(message)
 
             if time.time() - last_ts >= CONTROL_TIME_PERIOD:
                 # WRT frame set by controller for now | robot to vr z->x, x->y, y->z
@@ -148,15 +148,22 @@ def start_server(queue):
                 rel_right_pose[2] = (right_pose[1] - init_right_pos[1]) * SCALE_FACTOR
                 rel_right_pose[0] = (right_pose[2] - init_right_pos[2]) * SCALE_FACTOR
 
-                queue.put(CartesianMoveMessage(target=rel_right_pose[:3] + [0., 0., 0.], wait=False, relative=True)) #For now, only consider the position
+                right_queue.put(CartesianMoveMessage(target=rel_right_pose[:3] + [0., 0., 0.], wait=False, relative=True)) #For now, only consider the position
+                
+                # WRT frame set by controller for now | robot to vr z->x, x->y, y->z
+                rel_left_pose[1] = (left_pose[0] - init_left_pos[0]) * SCALE_FACTOR
+                rel_left_pose[2] = (left_pose[1] - init_left_pos[1]) * SCALE_FACTOR
+                rel_left_pose[0] = (left_pose[2] - init_left_pos[2]) * SCALE_FACTOR
 
+                left_queue.put(CartesianMoveMessage(target=rel_left_pose[:3] + [0., 0., 0.], wait=False, relative=True)) #For now, only consider the position
+                
 
             socket.send_string("OK: {}".format(time.time()))
 
 
-def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
+def move_robot(queue, last_sent_msg_ts, control_timeperiod, ip):
     # Initialize xArm API
-    arm = XArmAPI("192.168.86.216")
+    arm = XArmAPI(ip)
 
     arm.clean_error()
     arm.clean_warn()
@@ -189,7 +196,7 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
     }
 
     while True: 
-        if (time.time() - last_sent_msg_ts.value) > control_timeperiod:
+        if (time.time() - last_sent_msg_ts) > control_timeperiod:
 
             if not queue.empty():
                 move_msg = queue.get()
@@ -228,6 +235,7 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
                     des_pose[2]=z_max
                 elif des_pose[2] < z_min:
                     des_pose[2]=z_min
+                
                 print(des_pose)
                 x = arm.set_servo_cartesian_aa( des_pose, wait=False, relative=False, mvacc=1000, speed=200)
                 # ---------- Debug ----------- #
@@ -247,14 +255,14 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
                 # x = arm.set_position(*move_msg.target, relative=True, wait=False)
                 # print("Robot set_position returns: {}".format(x))
 
-                last_sent_msg_ts = c_double(time.time())
-                last_sent_msg = move_msg
+                last_sent_msg_ts = time.time()
+                # c_double(time.time())
                 # print("last_sent_msg: {}".format(last_sent_msg.target))
 
                 # ---------- Debug ----------- #
-                print("Writing to debug.csv")
-                if debug_id % 200 == 0:
-                    df.to_csv('debug.csv', mode='w')
+                # print("Writing to debug.csv")
+                # if debug_id % 200 == 0:
+                #     df.to_csv('debug.csv', mode='w')
                 # ---------------------------- #
 
 
@@ -274,14 +282,23 @@ if __name__ == "__main__":
     ctx_manager.start()
 
 
-    last_sent_msg_ts = mp.Value("d", time.time(), lock=False) # Single process access; no need for lock; Makes process faster.
+    # last_sent_msg_ts = mp.Value("d", time.time(), lock=False) # Single process access; no need for lock; Makes process faster.
     # Last message sent to the message queue by the calling process
+    last_sent_msg_ts = time.time() # Single process access; no need for lock; Makes process faster.
+
     last_queued_msg = ctx_manager.CartesianMoveMessage([0, 0, 0, 0, 0, 0], relative =True) # TODO : Implement this as mp object; use BaseManager;
 
 
-    message_queue = mp.Queue()
-    moving_process = mp.Process(target=move_robot, args=(message_queue, last_sent_msg_ts, last_queued_msg, control_timeperiod), name = "move_proc")
-    start_server_process = mp.Process(target= start_server,args =(message_queue,), name="server_thread")
+    right_message_queue = mp.Queue()
 
-    moving_process.start()
+    left_message_queue = mp.Queue()
+
+    right_moving_process = mp.Process(target=move_robot, args=(right_message_queue, time.time(), control_timeperiod, "192.168.86.230"), name = "move_proc_right")
+    left_moving_process = mp.Process(target=move_robot, args=(left_message_queue, time.time(), control_timeperiod, "192.168.86.216"), name = "move_proc_left")
+    
+    
+    start_server_process = mp.Process(target= start_server,args =(left_message_queue, right_message_queue,), name="server_thread")
+
+    right_moving_process.start()
+    left_moving_process.start()
     start_server_process.start()
