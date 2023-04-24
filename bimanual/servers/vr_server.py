@@ -6,8 +6,14 @@ from xarm import XArmAPI
 from ctypes import c_double
 import pandas as pd
 from bimanual.hardware.robot.xarmrobot import  register_ctx, CustomManager, CartesianMoveMessage
-from bimanual.utils.debug_utils import DebugTimer 
 
+
+x_max = 406
+x_min = 206
+y_max = 200
+y_min = -200
+z_max = 350
+z_min = 120
 
 
 SCALE_FACTOR = 1000
@@ -17,9 +23,60 @@ CONTROL_TIME_PERIOD = 1/CONTROL_FREQ
 
 def parse_pose_message(message):
     left_pose, right_pose = message.split('|')
-    left_pose = [round(float(x),3) for x in left_pose.split(',')]
-    right_pose = [round(float(x),3) for x in right_pose.split(',')]
+    left_pose = [round(float(x),4) for x in left_pose.split(',')]
+    right_pose = [round(float(x),4) for x in right_pose.split(',')]
     return left_pose, right_pose
+
+# def start_server(queue):
+#     # Set up the ZeroMQ context
+#     context = zmq.Context()
+
+#     # Create a REP (reply) socket
+#     socket = context.socket(zmq.REP)
+#     # Bind the socket to a specific address and port
+#     socket.bind("tcp://*:5555")
+
+#     start_teleop = False
+#     init_pos_flag = False
+
+#     rel_left_pose = [0. for  _ in range(7)]
+#     rel_right_pose = [0. for  _ in range(7)]
+
+#     last_ts = None
+
+
+#     print("Starting server...")
+
+#     while True:
+#         # Wait for a message from the client
+#         message = socket.recv_string()
+#         # print("Received request: {}, at time:{}".format(message, time.time()))
+
+#         if message.startswith("start"):
+#             start_teleop = True
+#             socket.send_string("OK: Starting teleop at time:{}".format(time.time()))
+#             init_pos_flag = True
+            
+#         elif init_pos_flag == True:
+#             init_left_pos, init_right_pos = parse_pose_message(message)
+#             last_ts = time.time()
+#             init_pos_flag = False
+#             socket.send_string("OK: Received init pos")
+            
+#         elif start_teleop == True:
+            
+#             # Parse the message
+#             _ , right_pose = parse_pose_message(message)
+
+#             if time.time() - last_ts >= CONTROL_TIME_PERIOD:
+#                 rel_right_pose[0] = (right_pose[0] - init_right_pos[0]) * SCALE_FACTOR
+#                 rel_right_pose[1] = (right_pose[1] - init_right_pos[1]) * SCALE_FACTOR
+            
+#                 queue.put(CartesianMoveMessage(target=rel_right_pose[:3] + [0., 0., 0.], wait=False, relative=True)) #For now, only consider the position
+
+#             socket.send_string("OK: {}".format(time.time()))
+
+
 
 def start_server(queue):
     # Set up the ZeroMQ context
@@ -31,45 +88,68 @@ def start_server(queue):
     socket.bind("tcp://*:5555")
 
     start_teleop = False
-    prev_left_pos, prev_right_pos = None, None
-    init_pos_flag = False
+    init_left_pos, init_right_pos = None, None
 
     rel_left_pose = [0. for  _ in range(7)]
     rel_right_pose = [0. for  _ in range(7)]
 
     last_ts = None
 
-
     print("Starting server...")
+
+    """
+    Message format:
+        1) Start teleop message : Used to initialize the teleop
+        Description: 'start:l_x, l_y, l_z, l_rot_x, l_rot_y, l_rot_z, l_rot_w|r_x, r_y, r_z, r_rot_x, r_rot_y, r_rot_z, r_rot_w'
+        Example: 'start:1.0, 2.0, 3.0, 45.0, 30.0, 60.0, 1.|1.0, 2.0, 3.0, 45.0, 30.0, 60.0, 1.'
+        
+        2) Stop teleop message: Used to stop the teleop
+        'stop'
+
+        3) Pose message: Used to send the pose of the controllers
+        Description: 'l_x, l_y, l_z, l_rot_x, l_rot_y, l_rot_z, l_rot_w|r_x, r_y, r_z, r_rot_x, r_rot_y, r_rot_z, r_rot_w'
+        Example: '1.0, 2.0, 3.0, 45.0, 30.0, 60.0, 1.|1.0, 2.0, 3.0, 45.0, 30.0, 60.0, 1.'
+
+    """
 
     while True:
         # Wait for a message from the client
         message = socket.recv_string()
         # print("Received request: {}, at time:{}".format(message, time.time()))
 
-        if message.startswith("start"):
+        if message.startswith("start:"):
             start_teleop = True
-            socket.send_string("OK: Starting teleop at time:{}".format(time.time()))
-            init_pos_flag = True
+            print(message)
+            message = message[6:].strip() # Get rid of the "start" part. Extract pose info.         
             
-        elif init_pos_flag == True:
             init_left_pos, init_right_pos = parse_pose_message(message)
+            print("Initialize position: {}".format(message))
             last_ts = time.time()
-            init_pos_flag = False
-            socket.send_string("OK: Received init pos")
+            socket.send_string("OK: Starting teleop at time:{}; Initialized frames".format(last_ts))
+        
+        elif message.startswith("stop"):
             
+            start_teleop = False
+            socket.send_string("OK: Stopping teleop at time:{}".format(time.time()))
+            print("Stopping teleop...")
+            
+            # Reset init frames to None
+            init_left_pos, init_right_pos = None, None
+            print("Resetting init frames to None")
+
         elif start_teleop == True:
             
             # Parse the message
             _ , right_pose = parse_pose_message(message)
 
             if time.time() - last_ts >= CONTROL_TIME_PERIOD:
-                rel_right_pose[0] = (right_pose[0] - init_right_pos[0]) * SCALE_FACTOR
-                rel_right_pose[1] = (right_pose[1] - init_right_pos[1]) * SCALE_FACTOR
-            
-                # print(np.linalg.norm(rel_right_pose[:3]))
-                # print("Sending to robot")
+                # WRT frame set by controller for now | robot to vr z->x, x->y, y->z
+                rel_right_pose[1] = (right_pose[0] - init_right_pos[0]) * SCALE_FACTOR
+                rel_right_pose[2] = (right_pose[1] - init_right_pos[1]) * SCALE_FACTOR
+                rel_right_pose[0] = (right_pose[2] - init_right_pos[2]) * SCALE_FACTOR
+
                 queue.put(CartesianMoveMessage(target=rel_right_pose[:3] + [0., 0., 0.], wait=False, relative=True)) #For now, only consider the position
+
 
             socket.send_string("OK: {}".format(time.time()))
 
@@ -136,15 +216,18 @@ def move_robot(queue, last_sent_msg_ts, last_sent_msg, control_timeperiod):
                 des_pose = (np.clip( delta_pose, -5, 5) + np.array( current_pose[:3])).tolist() + current_pose[3:]
 
 
-                if des_pose[0] > 406:
-                    des_pose[0]=406
-                elif des_pose[0] < 206:
-                    des_pose[0]=206
-                if des_pose[1]>200:
-                    des_pose[1]=200
-                elif des_pose[1] < -200:
-                    des_pose[1]=-200
-
+                if des_pose[0] > x_max:
+                    des_pose[0]=x_max
+                elif des_pose[0] < x_min:
+                    des_pose[0]=x_min
+                if des_pose[1]>y_max:
+                    des_pose[1]=y_max
+                elif des_pose[1] < y_min:
+                    des_pose[1]=y_min
+                if des_pose[2]>z_max:
+                    des_pose[2]=z_max
+                elif des_pose[2] < z_min:
+                    des_pose[2]=z_min
                 print(des_pose)
                 x = arm.set_servo_cartesian_aa( des_pose, wait=False, relative=False, mvacc=1000, speed=200)
                 # ---------- Debug ----------- #
