@@ -10,10 +10,10 @@ from bimanual.hardware.robot.xarmrobot import  register_ctx, CustomManager, Cart
 
 x_max = 406
 x_min = 206
-y_max = 200
-y_min = -200
-z_max = 350
-z_min = 120
+y_max = 400
+y_min = -400
+z_max = 664
+z_min = 470
 
 
 SCALE_FACTOR = 1000
@@ -171,9 +171,18 @@ def move_robot(queue, last_sent_msg_ts, control_timeperiod, ip):
     arm.motion_enable(enable=True)
     arm.set_mode(0)
     arm.set_state(0)
-    arm.move_gohome(wait=True)
-    time.sleep(0.1)
-    
+    # arm.move_gohome(wait=True)
+    # time.sleep(0.1)
+
+    # arm.set_gripper_mode(0)
+    # arm.set_gripper_enable(True)
+    # arm.set_gripper_speed(5000)
+    # arm.set_gripper_position(300, wait=True)
+
+    home_pose_aa = [206.0, -0.0, 475, 180.00002, -0.0, 0.0]
+    status = arm.set_position_aa(home_pose_aa, wait=True)
+    assert status==0, "Failed to set robot at home position"
+
     status, home_pose = arm.get_position_aa()
     target_pose = [0]*6
     assert status==0, "Failed to get robot position"
@@ -208,15 +217,28 @@ def move_robot(queue, last_sent_msg_ts, control_timeperiod, ip):
                     target_pose[i] = move_msg.target[i] + home_pose[i]
 
                 # ---------- Debug ----------- #
-                debug_id += 1 # may not need this; df has ordering
-                debug_record['id'] = debug_id
+                # debug_id += 1 # may not need this; df has ordering
+                # debug_record['id'] = debug_id
                 # ---------------------------- #
                 
+                if arm.has_err_warn:
+                    arm.clean_error()
+                    arm.clean_warn()
+                    arm.motion_enable(enable=False)
+                    arm.motion_enable(enable=True)
+                    arm.set_mode(0)
+                    arm.set_state(0)
+
+                    status = arm.set_position_aa(home_pose_aa, wait=True)
+                    assert status==0, "Failed to set robot at home position"
+                    arm.set_mode(1)
+                    arm.set_state(0)
+
                 current_pose = arm.get_position_aa()[1]
 
                 # ---------- Debug ----------- #
-                debug_record['get_current_pose_time'] = time.time()
-                debug_record['current_pose'] = current_pose
+                # debug_record['get_current_pose_time'] = time.time()
+                # debug_record['current_pose'] = current_pose
                 # ---------------------------- #
                                 
                 delta_pose = np.array(target_pose[:3]) - np.array( current_pose[:3])
@@ -237,13 +259,15 @@ def move_robot(queue, last_sent_msg_ts, control_timeperiod, ip):
                     des_pose[2]=z_min
                 
                 print(des_pose)
-                x = arm.set_servo_cartesian_aa( des_pose, wait=False, relative=False, mvacc=1000, speed=200)
-                # ---------- Debug ----------- #
-                debug_record['set_des_pose_time'] = time.time()
-                debug_record['des_pose'] = des_pose
                 
-                new_row = pd.DataFrame(debug_record)
-                df = pd.concat([df, new_row])
+
+                x = arm.set_servo_cartesian_aa( des_pose, wait=False, relative=False, mvacc=200, speed=50)
+                # ---------- Debug ----------- #
+                # debug_record['set_des_pose_time'] = time.time()
+                # debug_record['des_pose'] = des_pose
+                
+                # new_row = pd.DataFrame(debug_record)
+                # df = pd.concat([df, new_row])
                 # ---------------------------- #
 
 

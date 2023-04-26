@@ -30,6 +30,11 @@ class CartesianMoveMessage(MoveMessage):
         self.wait = wait # Default async calls; do not wait for robot to finish moving.
         self.is_radian = is_radian
 
+class GripperMoveMessage(MoveMessage):
+    def __init__(self, target, wait = False):
+        super(GripperMoveMessage, self).__init__(target)
+        self.wait = wait
+            
 class JointMoveMessage(MoveMessage):
     def __init__(self, target, speed=100, acceleration=100):
         super(JointMoveMessage, self).__init__(target)

@@ -10,6 +10,29 @@ from bimanual.utils.debug_utils import DebugTimer
 
 
 
+
+def start_server():
+    # Set up the ZeroMQ context
+    context = zmq.Context()
+
+    # Create a REP (reply) socket
+    
+    socket = context.socket(zmq.REP)
+    # Bind the socket to a specific address and port
+    socket.bind("tcp://*:5555")
+
+    print("Starting server...")
+
+
+    while True:
+        # Wait for a message from the client
+        message = socket.recv_string()
+        print(message)
+        socket.send_string("OK: Received message")
+        
+
+
+
 SCALE_FACTOR = 1000
 CONTROL_FREQ = 90.
 CONTROL_TIME_PERIOD = 1/CONTROL_FREQ
