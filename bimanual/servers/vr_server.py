@@ -309,20 +309,29 @@ if __name__ == "__main__":
     # last_sent_msg_ts = mp.Value("d", time.time(), lock=False) # Single process access; no need for lock; Makes process faster.
     # Last message sent to the message queue by the calling process
     last_sent_msg_ts = time.time() # Single process access; no need for lock; Makes process faster.
-
     last_queued_msg = ctx_manager.CartesianMoveMessage([0, 0, 0, 0, 0, 0], relative =True) # TODO : Implement this as mp object; use BaseManager;
-
-
     right_message_queue = mp.Queue()
-
     left_message_queue = mp.Queue()
 
-    right_moving_process = mp.Process(target=move_robot, args=(right_message_queue, time.time(), control_timeperiod, "192.168.86.230"), name = "move_proc_right")
-    left_moving_process = mp.Process(target=move_robot, args=(left_message_queue, time.time(), control_timeperiod, "192.168.86.216"), name = "move_proc_left")
-    
-    
-    start_server_process = mp.Process(target= start_server,args =(left_message_queue, right_message_queue,), name="server_thread")
+    try:
+        right_moving_process = mp.Process(target=move_robot, args=(right_message_queue, time.time(), control_timeperiod, "192.168.86.230"), name = "move_proc_right")
+        left_moving_process = mp.Process(target=move_robot, args=(left_message_queue, time.time(), control_timeperiod, "192.168.86.216"), name = "move_proc_left") 
+        start_server_process = mp.Process(target= start_server,args =(left_message_queue, right_message_queue,), name="server_proc")
 
-    right_moving_process.start()
-    left_moving_process.start()
-    start_server_process.start()
+        right_moving_process.start()
+        left_moving_process.start()
+        start_server_process.start()
+    
+    # keyboard interrupt exception
+    except KeyboardInterrupt:
+        right_moving_process.join()
+        left_moving_process.join()
+        start_server_process.join()
+        ctx_manager.shutdown()
+
+        print("Exiting...")
+        exit()
+
+    except Exception as e:
+        print("Error: {}".format(e))
+        exit()
