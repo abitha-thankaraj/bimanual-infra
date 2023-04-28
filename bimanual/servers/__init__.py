@@ -9,6 +9,15 @@ FLIP_MATRIX = np.array(
     ]
 )
 
+# yzx;zyx
+# np.array(
+#     [
+#     [0, 0, 1],
+#     [1, 0, 0],
+#     [0, 1, 0]
+#     ]
+# )
+
 
 # TODO: Move this to init file
 x_max = 406
