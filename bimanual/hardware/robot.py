@@ -25,8 +25,8 @@ class CartesianMoveMessage(MoveMessage):
     def __init__(
         self,
         target,
-        speed=100,
-        acceleration=100,
+        speed=50,
+        acceleration=200,
         relative=False,
         wait=True,
         is_radian=True,

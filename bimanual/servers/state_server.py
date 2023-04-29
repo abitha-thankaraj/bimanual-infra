@@ -56,10 +56,8 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
             start_teleop = False
             init_left_affine, init_right_affine = None, None
             # Sentinal value to reset robot start pose to current pose.
-            right_queue.put(CartesianMoveMessage(
-                target=None, wait=False, relative=True))
-            left_queue.put(CartesianMoveMessage(
-                target=None, wait=False, relative=True))
+            right_queue.put(CartesianMoveMessage(target=None))
+            left_queue.put(CartesianMoveMessage(target=None))
 
         if start_teleop:
             # Why do you need a rate limiter here?
@@ -71,12 +69,12 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
                 relative_right_affine = controller_state.right_affine @ np.linalg.pinv(
                     init_right_affine)
                 right_queue.put(CartesianMoveMessage(
-                    affine=relative_right_affine, wait=False, relative=True))
+                    affine=relative_right_affine, target=[]))
 
                 relative_left_affine = controller_state.left_affine @ np.linalg.pinv(
                     init_left_affine)
                 left_queue.put(CartesianMoveMessage(
-                    affine=relative_left_affine, wait=False, relative=True))
+                    affine=relative_left_affine, target=[]))
 
                 last_ts = time.time()
 
