@@ -42,6 +42,14 @@ class ControllerState:
     @property
     def left_rotation_matrix(self) -> np.ndarray:
         return self.get_aligned_rotation_matrix(self.left_local_rotation)
+    
+    @property
+    def left_affine(self) -> np.ndarray:
+        return self.get_aligned_affine(self.left_local_position, self.left_local_rotation)
+    
+    @property
+    def right_affine(self) -> np.ndarray:
+        return self.get_aligned_affine(self.right_local_position, self.right_local_rotation)
 
     def get_aligned_rotation_matrix(self, controller_rotation, flip_matrix = FLIP_MATRIX):
         """Returns the rotation matrix from the controller frame in VR (Quaternions) to rotation matrix.
@@ -53,8 +61,10 @@ class ControllerState:
         # return einops.rearrange(controller_position, 'x y z -> z x y') * SCALE_FACTOR 
         return np.roll(controller_position, 1) * SCALE_FACTOR
     
-
-
+    def get_aligned_affine(self, controller_position, controller_rotation):
+        return  np.block([[self.get_aligned_rotation_matrix(controller_rotation), self.get_aligned_position(controller_position)[:, np.newaxis]],
+                               [np.zeros((1, 3)), 1]])
+    
 def parse_controller_state(to_string_output: str) -> ControllerState:
     left_data, right_data = to_string_output.split('|')
 

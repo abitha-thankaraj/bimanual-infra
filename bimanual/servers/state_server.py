@@ -7,7 +7,7 @@ from bimanual.servers import CONTROL_FREQ, CONTROL_TIME_PERIOD, FLIP_MATRIX, SCA
 
 from scipy.spatial.transform import Rotation as R
 import numpy as np
-from bimanual.hardware.robot.xarmrobot import  register_ctx, CustomManager, CartesianMoveMessage
+from bimanual.hardware.robot.xarmrobot import CartesianMoveMessage
 import pprint
 from xarm import XArmAPI
 
@@ -16,7 +16,7 @@ def move_robot(queue,
                control_timeperiod, 
                ip):
     # Initialize xArm API
-    arm = XArmAPI(ip)
+    arm = XArmAPI(ip) # TODO: Write wrapper
 
     arm.clean_error()
     arm.clean_warn()
@@ -41,19 +41,24 @@ def move_robot(queue,
 
     while True: 
         if (time.time() - last_sent_msg_ts) > control_timeperiod:
+            
 
             if not queue.empty():
+                
                 move_msg = queue.get()
-
+                print("Received message: {}".format(move_msg))
+                
                 if move_msg.is_terminal():
-                    break
+                    home_pose = arm.get_position_aa()[1]
+                    print("Resetting : {}".format(home_pose))
+                    continue
 
                 # Only on position.
                 for i in range(3):
                     target_pose[i] = move_msg.target[i] + home_pose[i]
 
                 # Rotation - home pose
-                target_rotation_matrix = move_msg.rotation @ R.as_matrix(R.from_rotvec(np.array(home_pose[3:]))) 
+                target_rotation_matrix = move_msg.rotation @ R.as_matrix(R.from_rotvec(np.array(home_pose[3:])))
                 target_rotation = np.degrees(R.from_matrix(target_rotation_matrix).as_rotvec()).tolist()
                 
                 
@@ -71,34 +76,17 @@ def move_robot(queue,
                     arm.set_state(0)
 
                 current_pose = arm.get_position_aa()[1]
-
-                # ---------- Debug ----------- #
-                # debug_record['get_current_pose_time'] = time.time()
-                # debug_record['current_pose'] = current_pose
-                # ---------------------------- #
-                                
+                    
                 delta_pose = np.array(target_pose[:3]) - np.array( current_pose[:3])
-                des_pose = (np.clip( delta_pose, -5, 5) + np.array( current_pose[:3])).tolist() + target_rotation # How do you clip axes angles?
-                # current_pose[3:]
-
-
-                if des_pose[0] > x_max:
-                    des_pose[0]=x_max
-                elif des_pose[0] < x_min:
-                    des_pose[0]=x_min
-                if des_pose[1]>y_max:
-                    des_pose[1]=y_max
-                elif des_pose[1] < y_min:
-                    des_pose[1]=y_min
-                if des_pose[2]>z_max:
-                    des_pose[2]=z_max
-                elif des_pose[2] < z_min:
-                    des_pose[2]=z_min
                 
-                print(des_pose)
-                
+                des_position = np.clip(np.clip(delta_pose, -5, 5) + np.array(current_pose[:3]), 
+                                       a_min = np.array([x_min, y_min, z_min]), 
+                                       a_max = np.array([x_max, y_max, z_max])).tolist()
+
+                des_pose = des_position + target_rotation #TODO: How do you clip axes angles?
 
                 x = arm.set_servo_cartesian_aa( des_pose, wait=False, relative=False, mvacc=200, speed=50)
+
                 print("Robot set_servo_cartesian returns: {}".format(x))
                 if x!=0:
                     print("Failed to set robot position")
@@ -124,7 +112,7 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
     # Bind the socket to a specific address and port
     socket.bind("tcp://*:5555")
 
-    start_teleop, gripper_closed_flag = False, False # Start with gripper open
+    start_teleop = False
     
     init_left_position, init_right_position = None, None
     init_left_rotation, init_right_rotation = None, None
@@ -144,19 +132,22 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
         # Wait for a message from the client
         message = socket.recv_string()
         
-        # print(message)
+        # REP socket must send a reply back.
         socket.send_string("OK: Received message")
-        # Parse the message
+        
         controller_state = parse_controller_state(message)
-
-        pprint.pprint(controller_state)
+        
+        # Debug message
+        # pprint.pprint(controller_state)
+        
         # Pressing A button calibrates first frame and starts teleop
         if controller_state.right_a:
             
             start_teleop = True
+            
             print("Starting teleop...")
             last_ts = time.time()
-            # TODO: Convert quaternion to axes angle
+
             init_left_position = controller_state.left_position
             init_left_rotation = controller_state.left_rotation_matrix
             
@@ -164,11 +155,13 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
             init_right_rotation = controller_state.right_rotation_matrix
 
         
-        # Pressing B button stops teleop. And resets calibration frames.
+        # Pressing B button stops teleop. And resets calibration frames to None.
         if controller_state.right_b:
-            print("Stopping teleop...")
             start_teleop = False
             init_left_position, init_right_position = None, None
+            init_left_rotation, init_right_rotation = None, None
+            right_queue.put(CartesianMoveMessage(target=None, wait=False, relative=True)) 
+            left_queue.put(CartesianMoveMessage(target=None, wait=False, relative=True)) 
             
 
         #TODO : Move toggle logic to robot.py; I want to set some lock/mutex such that
@@ -176,17 +169,17 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
 
         # Index trigger to close; hand trigger to open.
         
-        # if controller_state.left_index_trigger > 0.5:
-        #     left_queue.put(GripperMoveMessage(0., wait = False)) 
+        if controller_state.left_index_trigger > 0.5:
+            left_queue.put(GripperMoveMessage(0., wait = False)) 
         
-        # if controller_state.left_hand_trigger > 0.5:
-        #     left_queue.put(GripperMoveMessage(300, wait = False)) 
+        elif controller_state.left_hand_trigger > 0.5:
+            left_queue.put(GripperMoveMessage(300, wait = False)) #TODO: Move open to consts
 
-        # if controller_state.right_index_trigger > 0.5:
-        #     right_queue.put(GripperMoveMessage(0., wait = False))
+        if controller_state.right_index_trigger > 0.5:
+            right_queue.put(GripperMoveMessage(0., wait = False))
         
-        # if controller_state.right_hand_trigger > 0.5:
-        #     right_queue.put(GripperMoveMessage(300, wait = False)) 
+        elif controller_state.right_hand_trigger > 0.5:
+            right_queue.put(GripperMoveMessage(300, wait = False)) 
         
         if start_teleop:
             # Insert teleop logic here.
@@ -194,7 +187,6 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
                 # WRT frame set by controller for now | robot to vr z->x, x->y, y->z
                 relative_right_position = controller_state.right_position - init_right_position
                 relative_right_rotation = controller_state.right_rotation_matrix @ np.linalg.pinv(init_right_rotation)
-
                 right_queue.put(CartesianMoveMessage(target=list(relative_right_position[:3]) + [0., 0., 0.], rotation=relative_right_rotation, wait=False, relative=True)) #For now, only consider the position
                 
                 relative_left_position = controller_state.left_position - init_left_position
@@ -207,16 +199,6 @@ if __name__ == "__main__":
     control_frequency = 90# TODO; measure control frequency for each box. COmmands should be sent at 30-250. If <30 - choppy; if>250 drop frames. Deatils in manual:
     control_timeperiod = 1./control_frequency
 
-
-    register_ctx()
-    ctx_manager = CustomManager(ctx=mp.get_context())
-    ctx_manager.start()
-
-
-    # last_sent_msg_ts = mp.Value("d", time.time(), lock=False) # Single process access; no need for lock; Makes process faster.
-    # Last message sent to the message queue by the calling process
-    last_sent_msg_ts = time.time() # Single process access; no need for lock; Makes process faster.
-    # last_queued_msg = ctx_manager.CartesianMoveMessage([0, 0, 0, 0, 0, 0], relative =True) # TODO : Implement this as mp object; use BaseManager;
     right_message_queue = mp.Queue()
     left_message_queue = mp.Queue()
 
@@ -234,7 +216,6 @@ if __name__ == "__main__":
         right_moving_process.join()
         # left_moving_process.join()
         start_server_process.join()
-        ctx_manager.shutdown()
 
         print("Exiting...")
         exit()

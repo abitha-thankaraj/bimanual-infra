@@ -7,8 +7,8 @@ from ctypes import c_double
 
 
 class RobotControlMode(Enum):
-    CARTESIAN_POSITION = 0
-    JOINT_POSITION = 1
+    CARTESIAN_CONTROL = 0
+    SERVO_CONTROL = 1
 
 #--------------------------------------------------------------------------------#
 
@@ -35,13 +35,6 @@ class GripperMoveMessage(MoveMessage):
     def __init__(self, target, wait = False):
         super(GripperMoveMessage, self).__init__(target)
         self.wait = wait
-            
-class JointMoveMessage(MoveMessage):
-    def __init__(self, target, speed=100, acceleration=100):
-        super(JointMoveMessage, self).__init__(target)
-        self.speed = speed
-        self.mvacc = acceleration
-        # TODO : Verify all parameters for set_servo_angle_j.
 
 #--------------------------------------------------------------------------------#
 
@@ -52,7 +45,6 @@ class CustomManager(BaseManager):
 def register_ctx():
     CustomManager.register('MoveMessage', MoveMessage)
     CustomManager.register('CartesianMoveMessage', CartesianMoveMessage)
-    CustomManager.register('JointMoveMessage', JointMoveMessage)
 
 
 #--------------------------------------------------------------------------------#
@@ -61,7 +53,7 @@ def register_ctx():
 
 class Robot(XArmAPI):
     def __init__(self, ip, do_not_open=False, 
-                 robot_control_mode=RobotControlMode.CARTESIAN_POSITION, 
+                 robot_control_mode=RobotControlMode.CARTESIAN_CONTROL, 
                  is_radian=True, home_target = [206.0, -0.0, 120.5, 3.141593, -0.0, 0.0]):
         super(Robot, self).__init__(port=ip,
                          is_radian=is_radian,
@@ -114,11 +106,11 @@ class Robot(XArmAPI):
         # self.reset(home=False)
     
     def _set_move_command(self):
-        if self._control_mode == RobotControlMode.CARTESIAN_POSITION:
+        if self._control_mode == RobotControlMode.CARTESIAN_CONTROL:
             self.move_cmd = self.set_position
 
             # self.move_cmd = self.set_servo_cartesian
-        elif self._control_mode == RobotControlMode.JOINT_POSITION:
+        elif self._control_mode == RobotControlMode.SERVO_CONTROL:
             raise NotImplementedError("Not implemented for control mode: {}".format(self._control_mode))
             # self.move_cmd = self.set_servo_angle_j #TODO: Verify this
         else:
