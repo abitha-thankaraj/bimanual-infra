@@ -66,15 +66,11 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
             if time.time() - last_ts >= CONTROL_TIME_PERIOD:
                 # end_affine = relative_affine @ start_affine
 
-                relative_right_affine = controller_state.right_affine @ np.linalg.pinv(
-                    init_right_affine)
-                right_queue.put(CartesianMoveMessage(
-                    affine=relative_right_affine, target=[]))
+                relative_right_affine = controller_state.right_affine @ np.linalg.pinv(init_right_affine)
+                right_queue.put(CartesianMoveMessage(affine=relative_right_affine, target=[]))
 
-                relative_left_affine = controller_state.left_affine @ np.linalg.pinv(
-                    init_left_affine)
-                left_queue.put(CartesianMoveMessage(
-                    affine=relative_left_affine, target=[]))
+                relative_left_affine = controller_state.left_affine @ np.linalg.pinv(init_left_affine)
+                left_queue.put(CartesianMoveMessage(affine=relative_left_affine, target=[]))
 
                 last_ts = time.time()
 
