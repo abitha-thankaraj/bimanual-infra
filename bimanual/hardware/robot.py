@@ -4,14 +4,13 @@ from enum import Enum
 from xarm import XArmAPI
 import multiprocessing as mp
 
-from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_POSE_AA
+from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_POSE_AA, ROBOT_SERVO_MODE_STEP_LIMITS
 from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa
 
 
 class RobotControlMode(Enum):
     CARTESIAN_CONTROL = 0
     SERVO_CONTROL = 1
-
 
 class MoveMessage:
     def __init__(self, target):
@@ -129,7 +128,9 @@ def move_robot(queue: mp.Queue, ip: str):
 
                 delta_translation = np.array(target_pose[:3]) - np.array(current_pose[:3])
                 print("Delta position: ".format(delta_translation))
-                delta_translation = np.clip(delta_translation, -5, 5)
+                delta_translation = np.clip(delta_translation, 
+                                            a_min = ROBOT_SERVO_MODE_STEP_LIMITS[0], 
+                                            a_max = ROBOT_SERVO_MODE_STEP_LIMITS[1])
 
                 # a_min and a_max are the boundaries of the robot's workspace; clip absolute position to these boundaries.
 
