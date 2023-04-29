@@ -73,7 +73,7 @@ import pygame
 import time
 import typing
 from multiprocessing import Queue
-from bimanual.hardware.robot.xarmrobot import CartesianMoveMessage
+from bimanual.hardware.scratch_robot.xarmrobot import CartesianMoveMessage
 def keyboard_control(queue:Queue):
     rel_pose = [0, 0, 0, 0, 0, 0]        
     pygame.init()

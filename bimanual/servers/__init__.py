@@ -1,4 +1,3 @@
-# x,y,z to z,x,y
 import numpy as np
 
 FLIP_MATRIX = np.array(
@@ -9,24 +8,19 @@ FLIP_MATRIX = np.array(
     ]
 )
 
-# yzx;zyx
-# np.array(
-#     [
-#     [0, 0, 1],
-#     [1, 0, 0],
-#     [0, 1, 0]
-#     ]
-# )
-
-
 # TODO: Move this to init file
-x_max = 406
-x_min = 206
-y_max = 200
-y_min = -200
-z_max = 420
-z_min = 280
+x_min, x_max = 206, 506
+y_min, y_max = -200, 200
+z_min, z_max = 280, 420
+
+
+ROBOT_WORKSPACE = np.array([[x_min, x_max, y_min], [y_max, z_min, z_max]])
+
+ROBOT_HOME_POSE_AA = [206.0, -0.0, 475, np.pi, -0.0, 0.0]
 
 SCALE_FACTOR = 1000
-CONTROL_FREQ = 90.
+CONTROL_FREQ = 90. # Commands should be sent at 30-250. If <30 - choppy; if>250 drop frames. Details in manual:
 CONTROL_TIME_PERIOD = 1/CONTROL_FREQ
+
+RIGHT_ARM_IP = "192.168.86.230"
+LEFT_ARM_IP = "192.168.86.216"

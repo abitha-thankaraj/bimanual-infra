@@ -1,148 +1,158 @@
-
-
-
-import sys
 import time
 import numpy as np
-import random
-from configparser import ConfigParser
-from xarm.wrapper import XArmAPI
+from enum import Enum
+from xarm import XArmAPI
+import multiprocessing as mp
 
-class XArm:
+from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_POSE_AA
+from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa
 
-	def __init__(self,ip="192.168.86.230", home_displacement = (0,0,0), low_range=(1,1,0.2) , high_range=(2,2,1),
-				 keep_gripper_closed=False, highest_start=False, x_limit=None, y_limit=None, z_limit=None, pitch = 0, roll=180, gripper_action_scale=200):
-		self.arm = XArmAPI(ip)
-		self.gripper_max_open = 600
-		self.gripper_min_open = 0 #348
-		self.zero = (206/100,0/100,120.5/100)	# Units: .1 meters 
-		self.home = home_displacement
-		self.keep_gripper_closed = keep_gripper_closed
-		self.highest_start = highest_start
-		self.low_range = low_range
-		self.high_range = high_range
-		self.joint_limits = None
-		self.ip = ip
-		self.gripper_action_scale = gripper_action_scale
 
-		# Limits
-		self.x_limit = [0.5, 3.5] if x_limit is None else x_limit
-		self.y_limit = [-1.7, 1.3] if y_limit is None else y_limit
-		self.z_limit = [1.4, 3.4] if z_limit is None else z_limit # PressBlock
+class RobotControlMode(Enum):
+    CARTESIAN_CONTROL = 0
+    SERVO_CONTROL = 1
 
-		# Pitch value - Horizontal or vertical orientation
-		self.pitch = pitch
-		self.roll = roll
 
-	def start_robot(self):
-		if self.ip is None:
-			raise Exception('IP not provided.')
-		self.arm = XArmAPI(self.ip, is_radian=False)
-		self.arm.motion_enable(enable=False)
-		self.arm.motion_enable(enable=True)
-		if self.arm.error_code != 0:
-			self.arm.clean_error()
-		self.set_mode_and_state()
+class MoveMessage:
+    def __init__(self, target):
+        self.target = target
+        self.created_timestamp = time.time()
 
-	def set_mode_and_state(self, mode=0, state=0):
-		self.arm.set_mode(mode)
-		self.arm.set_state(state=state)
+    def is_terminal(self):  # Sentinal message
+        return self.target is None
 
-	def clear_errors(self):
-		self.arm.clean_warn()
-		self.arm.clean_error()
 
-	def has_error(self):
-		return self.arm.has_err_warn
+class CartesianMoveMessage(MoveMessage):
+    def __init__(
+        self,
+        target,
+        speed=100,
+        acceleration=100,
+        relative=False,
+        wait=True,
+        is_radian=True,
+        affine=None,
+    ):
+        super(CartesianMoveMessage, self).__init__(target)
+        self.speed = speed
+        self.mvacc = acceleration
+        self.relative = relative
+        # Default to async calls; do not wait for robot to finish moving.
+        self.wait = wait
+        self.is_radian = is_radian
+        self.affine = affine
 
-	def reset(self, home = False, reset_at_home=True):
-		if self.arm.has_err_warn:
-			self.clear_errors()
-		if home:
-			if reset_at_home:
-				self.move_to_home()
-			else:
-				self.move_to_zero()
-			if self.keep_gripper_closed:
-				self.close_gripper_fully()
-			else:
-				self.open_gripper_fully()
 
-	def move_to_home(self, open_gripper=False):
-		pos = self.get_position()
-		pos[0] = self.home[0]
-		pos[1] = self.home[1]
-		pos[2] = self.home[2]
-		self.set_position(pos)
-		if open_gripper and not self.keep_gripper_closed:
-			self.open_gripper_fully()
+class GripperMoveMessage(MoveMessage):
+    def __init__(self, target, wait=False):
+        super(GripperMoveMessage, self).__init__(target)
+        self.wait = wait
 
-	def move_to_zero(self):
-		pos = self.get_position()
-		pos[0] = min(max(self.x_limit[0],0), self.x_limit[1])# 0
-		pos[1] = min(max(self.y_limit[0],0), self.y_limit[1])# 0
-		pos[2] = min(max(self.z_limit[0],0), self.z_limit[1]) if not self.highest_start else self.z_limit[1] # 0
-		self.set_position(pos)
 
-	def set_position(self, pos, wait=False):
-		pos = self.limit_pos(pos)
-		x = (pos[0] + self.zero[0])*100
-		y = (pos[1] + self.zero[1])*100
-		z = (pos[2] + self.zero[2])*100
-		self.arm.set_position(x=x, y=y, z=z, roll=self.roll, pitch=self.pitch, yaw=0, wait=wait)
+class Robot(XArmAPI):
+    def __init__(self, ip="192.168.86.230", is_radian=True):
+        super(Robot, self).__init__(port=ip, is_radian=is_radian)
 
-	def get_position(self):
-		pos = self.arm.get_position()[1]
-		x = (pos[0]/100.0 - self.zero[0])
-		y = (pos[1]/100.0 - self.zero[1])
-		z = (pos[2]/100.0 - self.zero[2])
-		return np.array([x,y,z, pos[3], pos[4], pos[5]]).astype(np.float32)
+    def clear(self):
+        self.clean_error()
+        self.clean_warn()
+        self.motion_enable(enable=False)
+        self.motion_enable(enable=True)
 
-	def get_gripper_position(self):
-		code, pos = self.arm.get_gripper_position()
-		if code!=0:
-			raise Exception('Correct gripper angle cannot be obtained.')
-		return pos
+    def set_mode_and_state(self, mode: RobotControlMode, state: int=0):
+        self.set_mode(mode.value)
+        self.set_state(state)
 
-	def open_gripper_fully(self):
-		self.set_gripper_position(self.gripper_max_open)
+    def reset(self):
+        # Clean error
+        self.clear()
+        self.set_mode_and_state(RobotControlMode.CARTESIAN_CONTROL, 0)
+        # Move to predefined home position using cartesian control
+        status = self.set_position_aa(ROBOT_HOME_POSE_AA, wait=True) #TODO: Get joint states and set them. Derterministic.
+        assert status == 0, "Failed to set robot at home position"
+        # Set mode to servo control
+        self.set_mode_and_state(RobotControlMode.SERVO_CONTROL, 0)
+        # Wait for mode switch to complete
+        time.sleep(0.1)
 
-	def close_gripper_fully(self):
-		self.set_gripper_position(self.gripper_min_open)
+        
 
-	def open_gripper(self):
-		self.set_gripper_position(self.get_gripper_position() + self.gripper_action_scale)
+def move_robot(queue: mp.Queue, ip: str):
+    
+    # Initialize xArm API
+    robot = Robot(ip, is_radian=True)
 
-	def close_gripper(self):
-		self.set_gripper_position(self.get_gripper_position() - self.gripper_action_scale)
+    # Initialize timestamp; used to send messages to the robot at a fixed frequency.
+    last_sent_msg_ts = time.time()
+    robot.reset()
 
-	def set_gripper_position(self, pos, wait=False):
-		'''
-		wait: To wait till completion of action or not
-		'''
-		if pos<self.gripper_min_open:
-			pos = self.gripper_min_open
-		if pos>self.gripper_max_open:
-			pos = self.gripper_max_open
-		self.arm.set_gripper_position(pos, wait=wait, auto_enable=True)
+    status, home_pose = robot.get_position_aa()
+    assert status == 0, "Failed to get robot position"
+    print("Robot position: {}".format(home_pose))
 
-	def get_servo_angle(self):
-		code, angles = self.arm.get_servo_angle()
-		if code!=0:
-			raise Exception('Correct servo angles cannot be obtained.')
-		return angles
+    home_affine = robot_pose_aa_to_affine(home_pose)
+    print("Home affine: {}".format(home_affine))
 
-	def set_servo_angle(self, angles, is_radian=None):
-		'''
-		angles: List of length 8
-		'''
-		self.arm.set_servo_angle(angle=angles, is_radian=is_radian)
-	
-	def limit_pos(self, pos):
-		pos[0] = max(self.x_limit[0], pos[0])
-		pos[0] = min(self.x_limit[1], pos[0])
-		pos[1] = max(self.y_limit[0], pos[1])
-		pos[1] = min(self.y_limit[1], pos[1])
-		pos[2] = max(self.z_limit[0], pos[2])
-		pos[2] = min(self.z_limit[1], pos[2])
-		return pos
+
+    while True:
+        if (time.time() - last_sent_msg_ts) > CONTROL_TIME_PERIOD:
+            if not queue.empty():
+                move_msg = queue.get()
+
+                # B button pressed. When the robot stops; that becomes the new init frame.
+                if move_msg.is_terminal():
+                    home_pose = robot.get_position_aa()[1]
+                    home_affine = robot_pose_aa_to_affine(home_pose)
+                    print("Resetting : {}".format(home_pose))
+                    continue
+
+                # If robot is in error state, clear it. Reset to home. Consume next message.
+                if robot.has_err_warn:
+                    robot.reset()
+                    home_pose = robot.get_position_aa()[1]
+                    home_affine = robot_pose_aa_to_affine(home_pose)
+                    continue
+
+                # end_affine =  relative_affine @ start_affine
+
+                target_affine = move_msg.affine @ home_affine
+                target_pose = affine_to_robot_pose_aa(target_affine).tolist()
+                print("Target pose: {}".format(target_pose))
+
+                # If this target pose is too far from the current pose, move it to the closest point on the boundary.
+
+                current_pose = robot.get_position_aa()[1]
+
+                # When using servo commands, the maximum distance the robot can move is 10mm; clip translations accordingly.
+                # -5, 5 is a loose safety margin; should be fine for now.
+                # TODO: Make this a parameter. + smaller!
+
+                delta_translation = np.array(target_pose[:3]) - np.array(current_pose[:3])
+                print("Delta position: ".format(delta_translation))
+                delta_translation = np.clip(delta_translation, -5, 5)
+
+                # a_min and a_max are the boundaries of the robot's workspace; clip absolute position to these boundaries.
+
+                des_translation = delta_translation + np.array(current_pose[:3])
+                des_translation = np.clip(des_translation, a_min=ROBOT_WORKSPACE[0], a_max=ROBOT_WORKSPACE[1]).tolist()
+
+                print("Des translation: {}".format(des_translation))
+
+                # TODO: How do you clip axes angles? (to quaternions and scale?) Do you need to?
+                des_rotation = target_pose[3:]
+
+                des_pose = des_translation + des_rotation
+                print("Des pose".format(des_pose))
+                
+				#TODO: Get all the parameters from the message?
+                x = robot.set_servo_cartesian_aa(
+                    des_pose, wait=False, relative=False, mvacc=200, speed=50
+                )
+
+                assert x == 0, "Failed to set robot position: return code {}".format(
+                    x)
+
+                last_sent_msg_ts = time.time()
+
+            else:
+                time.sleep(0.001)

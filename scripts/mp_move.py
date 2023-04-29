@@ -1,7 +1,7 @@
 import time
 from xarm import XArmAPI
 import multiprocessing as mp
-from bimanual.hardware.robot.xarmrobot import register_ctx, CustomManager, CartesianMoveMessage
+from bimanual.hardware.scratch_robot.xarmrobot import register_ctx, CustomManager, CartesianMoveMessage
 from ctypes import c_double
 from keyboard_ctrl import keyboard_control
 

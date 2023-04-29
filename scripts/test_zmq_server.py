@@ -5,7 +5,7 @@ import numpy as np
 from xarm import XArmAPI
 from ctypes import c_double
 import pandas as pd
-from bimanual.hardware.robot.xarmrobot import  register_ctx, CustomManager, CartesianMoveMessage
+from bimanual.hardware.scratch_robot.xarmrobot import  register_ctx, CustomManager, CartesianMoveMessage
 from bimanual.utils.debug_utils import DebugTimer 
 
 
