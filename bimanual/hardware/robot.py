@@ -26,7 +26,7 @@ class MoveMessage:
 
 class CartesianMoveMessage(MoveMessage):
     def __init__(self, target: List[float], speed: float = 50., acceleration: float = 200.,
-                 relative: bool = False, wait: bool = True, is_radian: bool = True, 
+                 relative: bool = False, wait: bool = True, is_radian: bool = True,
                  affine: np.ndarray = None):
         super(CartesianMoveMessage, self).__init__(target)
         self.speed = speed
@@ -46,8 +46,7 @@ class GripperMoveMessage(MoveMessage):
 
 class Robot(XArmAPI):
     def __init__(self, ip="192.168.86.230", is_radian=True):
-        super(Robot, self).__init__(
-            port=ip, is_radian=is_radian, is_tool_coord=False)
+        super(Robot, self).__init__(port=ip, is_radian=is_radian, is_tool_coord=False)
         self.set_gripper_enable(True)
 
     def clear(self):
@@ -59,7 +58,7 @@ class Robot(XArmAPI):
     def set_mode_and_state(self, mode: RobotControlMode, state: int = 0):
         self.set_mode(mode.value)
         self.set_state(state)
-        self.set_gripper_mode(0)
+        self.set_gripper_mode(0)  # Gripper is always in position control.
 
     def reset(self):
         # Clean error
@@ -95,13 +94,15 @@ def move_robot(queue: mp.Queue, ip: str):
                 move_msg = queue.get()
 
                 if isinstance(move_msg, GripperMoveMessage):
-                    robot.set_gripper_position(move_msg.target, wait=move_msg.wait)
+                    robot.set_gripper_position(
+                        move_msg.target, wait=move_msg.wait)
                     continue
 
                 # B button pressed. When the robot stops; that becomes the new init frame.
                 if move_msg.is_terminal:
                     home_pose = robot.get_position_aa()[1]  # translation in mm
-                    home_affine = robot_pose_aa_to_affine(home_pose)  # translation in m
+                    home_affine = robot_pose_aa_to_affine(
+                        home_pose)  # translation in m
                     print("Resetting : {}".format(home_pose))
                     continue
 
@@ -124,7 +125,8 @@ def move_robot(queue: mp.Queue, ip: str):
 
                 # When using servo commands, the maximum distance the robot can move is 10mm; clip translations accordingly.
 
-                delta_translation = np.array(target_pose[:3]) - np.array(current_pose[:3])
+                delta_translation = np.array(
+                    target_pose[:3]) - np.array(current_pose[:3])
 
                 delta_translation = np.clip(delta_translation,
                                             a_min=ROBOT_SERVO_MODE_STEP_LIMITS[0],
@@ -133,13 +135,16 @@ def move_robot(queue: mp.Queue, ip: str):
                 # a_min and a_max are the boundaries of the robot's workspace; clip absolute position to these boundaries.
 
                 des_translation = delta_translation + np.array(current_pose[:3])
-                des_translation = np.clip(des_translation, a_min=ROBOT_WORKSPACE[0], a_max=ROBOT_WORKSPACE[1]).tolist()
+                des_translation = np.clip(des_translation, 
+                                          a_min=ROBOT_WORKSPACE[0], 
+                                          a_max=ROBOT_WORKSPACE[1]).tolist()
 
                 des_rotation = target_pose[3:]
                 des_pose = des_translation + des_rotation
 
                 # TODO: Get all the parameters from the message?
-                robot.set_servo_cartesian_aa(des_pose, wait=False, relative=False, mvacc=200, speed=50)
+                robot.set_servo_cartesian_aa(
+                    des_pose, wait=False, relative=False, mvacc=200, speed=50)
 
                 last_sent_msg_ts = time.time()
 
