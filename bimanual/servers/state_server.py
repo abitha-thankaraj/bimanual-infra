@@ -1,18 +1,14 @@
 import zmq
 import numpy as np
 import multiprocessing as mp
+from numpy.linalg import pinv
 
 from bimanual.servers import H_R_V
 from bimanual.servers.controller_state import parse_controller_state
 from bimanual.hardware.robot import CartesianMoveMessage, GripperMoveMessage
 
 
-def inv(H):
-    return np.linalg.pinv(H)
-
-
 def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
-    np.set_printoptions(precision=3, suppress=True)
     """ Opens zmq socket to receive controller state messages from the oculus. 
         Controller states are parsed and sent as affines to shared message queus to be accessed by each xarm.
     """
@@ -57,16 +53,19 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
             left_queue.put(CartesianMoveMessage(target=None))
 
         if start_teleop:
-            
-            ## LP edits
-            H_VR_des = inv(init_right_affine) @ controller_state.right_affine
-            relative_right_affine = inv(H_R_V) @ H_VR_des @ H_R_V
-            right_queue.put(CartesianMoveMessage(affine=relative_right_affine, target=[]))
-            
-            H_VL_des = inv(init_left_affine) @ controller_state.left_affine
-            relative_left_affine = inv(H_R_V) @ H_VL_des @ H_R_V
-            left_queue.put(CartesianMoveMessage(affine=relative_left_affine, target=[]))
 
+            # LP edits
+            # Relative rotation in controller from. From init_frame to current frame.
+            H_VR_des = pinv(init_right_affine) @ controller_state.right_affine
+            H_VL_des = pinv(init_left_affine) @ controller_state.left_affine
+
+            # Align axes. Flip and rotate.
+            relative_right_affine = pinv(H_R_V) @ H_VR_des @ H_R_V
+            relative_left_affine = pinv(H_R_V) @ H_VL_des @ H_R_V
+
+            # Send relative affines to each arm.
+            right_queue.put(CartesianMoveMessage(affine=relative_right_affine, target=[]))
+            left_queue.put(CartesianMoveMessage(affine=relative_left_affine, target=[]))
 
         # Index trigger to close; hand trigger to open.
         if controller_state.left_index_trigger > 0.5:

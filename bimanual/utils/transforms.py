@@ -12,7 +12,6 @@ def robot_pose_aa_to_affine(pose_aa: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 4x4 affine matrix [[R, t],[0, 1]]
     """
-    # print("Robot pose aa: ", pose_aa)
 
     rotation = R.from_rotvec(pose_aa[3:]).as_matrix()
     translation = np.array(pose_aa[:3]) / SCALE_FACTOR

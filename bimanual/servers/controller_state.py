@@ -1,7 +1,9 @@
-from dataclasses import dataclass
-from typing import Tuple
+import time
 import numpy as np
+from typing import Tuple
+from dataclasses import dataclass
 from scipy.spatial.transform import Rotation as R
+
 
 @dataclass
 class ControllerState:
@@ -11,7 +13,7 @@ class ControllerState:
     left_thumbstick: bool
     left_index_trigger: float
     left_hand_trigger: float
-    left_thumbstick_axes: np.ndarray[Tuple[float, float]] 
+    left_thumbstick_axes: np.ndarray[Tuple[float, float]]
     left_local_position: np.ndarray[Tuple[float, float, float]]
     left_local_rotation: np.ndarray[Tuple[float, float, float, float]]
 
@@ -24,6 +26,8 @@ class ControllerState:
     right_thumbstick_axes: np.ndarray[Tuple[float, float]]
     right_local_position: np.ndarray[Tuple[float, float, float]]
     right_local_rotation: np.ndarray[Tuple[float, float, float, float]]
+
+    created_ts: float
 
     @property
     def right_position(self) -> np.ndarray:
@@ -43,25 +47,30 @@ class ControllerState:
 
     @property
     def left_affine(self) -> np.ndarray:
-        return self.get_aligned_affine(self.left_local_position, self.left_local_rotation)
+        return self.get_affine(self.left_local_position, self.left_local_rotation)
 
     @property
     def right_affine(self) -> np.ndarray:
-        return self.get_aligned_affine(self.right_local_position, self.right_local_rotation)
+        return self.get_affine(self.right_local_position, self.right_local_rotation)
 
-    def get_aligned_affine(self, controller_position: np.ndarray, controller_rotation: np.ndarray):
-        """ To align the affine from the controller to the robot, coordinates
-        x, y, z -> z, x, y; Flip matrix is used to do that. We have no translations for now.
+    def get_affine(self, controller_position: np.ndarray, controller_rotation: np.ndarray):
+        """ Returns a 4x4 affine matrix from the controller's position and rotation.
+        Args:
+            controller_position: 3D position of the controller.
+            controller_rotation: 4D quaternion of the controller's rotation.
+            
+            All in headset space.
         """
-
-        controller_affine = np.block([[R.as_matrix(R.from_quat(controller_rotation)), controller_position[:, np.newaxis]],
-                                [np.zeros((1, 3)), 1.]])
         
-        return controller_affine
+        return np.block([[R.as_matrix(R.from_quat(controller_rotation)), controller_position[:, np.newaxis]],
+                         [np.zeros((1, 3)), 1.]])
 
 
-def parse_controller_state(to_string_output: str) -> ControllerState:
-    left_data, right_data = to_string_output.split('|')
+
+
+def parse_controller_state(controller_state_string: str) -> ControllerState:
+    
+    left_data, right_data = controller_state_string.split('|')
 
     left_data = left_data.split(';')[1:-1]
     right_data = right_data.split(';')[1:-1]
@@ -88,14 +97,14 @@ def parse_controller_state(to_string_output: str) -> ControllerState:
             # Thumbstick
             parse_list_float(data[6]),
             # Pose
-            parse_list_float(data[7]), #* SCALE_FACTOR, # Make all cordinates in mm.
+            parse_list_float(data[7]),
             parse_list_float(data[8])
         )
 
     left_parsed = parse_section(left_data)
     right_parsed = parse_section(right_data)
 
-    return ControllerState(*left_parsed, *right_parsed)
+    return ControllerState(*left_parsed, *right_parsed, time.time())
 
 
 # TODO: Move this to a test file
