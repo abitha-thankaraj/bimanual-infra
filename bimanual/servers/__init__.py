@@ -28,7 +28,7 @@ z_min, z_max = 100, 550
 
 ROBOT_WORKSPACE = np.array([[x_min, y_min, z_min], [x_max, y_max, z_max]])
 
-ROBOT_SERVO_MODE_STEP_LIMITS = np.array([-5, 5])
+ROBOT_SERVO_MODE_STEP_LIMITS = np.array([-2, 2])
 # Robot home pose.
 ROBOT_HOME_POSE_AA = [206.0, -0.0, 475, np.pi, -0.0, 0.0]
 

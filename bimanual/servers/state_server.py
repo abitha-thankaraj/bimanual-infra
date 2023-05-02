@@ -130,18 +130,18 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
                 # last_ts = time.time()
 
         # # Index trigger to close; hand trigger to open.
-        # if controller_state.left_index_trigger > 0.5:
-        #     left_queue.put(GripperMoveMessage(0., wait=False))
+        if controller_state.left_index_trigger > 0.5:
+            left_queue.put(GripperMoveMessage(0., wait=False))
 
-        # elif controller_state.left_hand_trigger > 0.5:
-        #     # TODO: Move open to consts
-        #     left_queue.put(GripperMoveMessage(300, wait=False))
+        elif controller_state.left_hand_trigger > 0.5:
+            # TODO: Move open to consts
+            left_queue.put(GripperMoveMessage(300, wait=False))
 
-        # if controller_state.right_index_trigger > 0.5:
-        #     right_queue.put(GripperMoveMessage(0., wait=False))
+        if controller_state.right_index_trigger > 0.5:
+            right_queue.put(GripperMoveMessage(0., wait=False))
 
-        # elif controller_state.right_hand_trigger > 0.5:
-        #     right_queue.put(GripperMoveMessage(300, wait=False))
+        elif controller_state.right_hand_trigger > 0.5:
+            right_queue.put(GripperMoveMessage(300, wait=False))
 
 
 def start_server_stream(queue: mp.Queue):

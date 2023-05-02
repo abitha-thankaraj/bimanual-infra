@@ -51,16 +51,20 @@ class GripperMoveMessage(MoveMessage):
 class Robot(XArmAPI):
     def __init__(self, ip="192.168.86.230", is_radian=True):
         super(Robot, self).__init__(port=ip, is_radian=is_radian, is_tool_coord=False)
+        self.set_gripper_enable(True)
+
 
     def clear(self):
         self.clean_error()
         self.clean_warn()
         self.motion_enable(enable=False)
         self.motion_enable(enable=True)
+        
 
     def set_mode_and_state(self, mode: RobotControlMode, state: int=0):
         self.set_mode(mode.value)
         self.set_state(state)
+        self.set_gripper_mode(0)
 
     def reset(self):
         # Clean error
@@ -97,6 +101,10 @@ def move_robot(queue: mp.Queue, ip: str):
         if (time.time() - last_sent_msg_ts) > CONTROL_TIME_PERIOD:
             if not queue.empty():
                 move_msg = queue.get()
+
+                if type(move_msg).__name__ == "GripperMoveMessage":
+                    robot.set_gripper_position(move_msg.target, wait=move_msg.wait)
+                    continue
 
                 # B button pressed. When the robot stops; that becomes the new init frame.
                 if move_msg.is_terminal():
