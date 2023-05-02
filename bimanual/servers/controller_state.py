@@ -1,5 +1,6 @@
 import time
 import numpy as np
+import pandas as pd
 from typing import Tuple
 from dataclasses import dataclass
 from scipy.spatial.transform import Rotation as R
@@ -58,18 +59,16 @@ class ControllerState:
         Args:
             controller_position: 3D position of the controller.
             controller_rotation: 4D quaternion of the controller's rotation.
-            
+
             All in headset space.
         """
-        
+
         return np.block([[R.as_matrix(R.from_quat(controller_rotation)), controller_position[:, np.newaxis]],
                          [np.zeros((1, 3)), 1.]])
 
 
-
-
 def parse_controller_state(controller_state_string: str) -> ControllerState:
-    
+
     left_data, right_data = controller_state_string.split('|')
 
     left_data = left_data.split(';')[1:-1]
@@ -105,6 +104,17 @@ def parse_controller_state(controller_state_string: str) -> ControllerState:
     right_parsed = parse_section(right_data)
 
     return ControllerState(*left_parsed, *right_parsed, time.time())
+
+
+def controller_state_to_df(controller_state: ControllerState) -> pd.DataFrame:
+    return pd.DataFrame(dict(
+        left_affine=pd.Series([controller_state.left_affine.tolist()]),
+        right_affine=pd.Series([controller_state.right_affine.tolist()]),
+        left_local_position=pd.Series([controller_state.left_local_position.tolist()]),
+        left_local_rotation=pd.Series([controller_state.left_local_rotation.tolist()]),
+        right_local_position=pd.Series([controller_state.right_local_position.tolist()]),
+        right_local_rotation=pd.Series([controller_state.right_local_rotation.tolist()])
+        ))
 
 
 # TODO: Move this to a test file
