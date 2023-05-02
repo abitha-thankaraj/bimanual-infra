@@ -133,7 +133,6 @@ def move_robot(queue: mp.Queue, ip: str):
                 delta_translation = np.clip(delta_translation, 
                                             a_min = ROBOT_SERVO_MODE_STEP_LIMITS[0], 
                                             a_max = ROBOT_SERVO_MODE_STEP_LIMITS[1])
-                # print("Delta translation clipped: {}".format(delta_translation))
                 # a_min and a_max are the boundaries of the robot's workspace; clip absolute position to these boundaries.
 
                 des_translation = delta_translation + np.array(current_pose[:3])

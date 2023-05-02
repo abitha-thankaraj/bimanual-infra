@@ -60,12 +60,6 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
             
             ## LP edits
             H_VR_des = inv(init_right_affine) @ controller_state.right_affine
-
-            H_R_V = np.array([[0, -1, 0, 0],
-                              [0, 0, -1, 0],
-                              [-1, 0, 0, 0],
-                              [0, 0, 0, 1]])
-            
             relative_right_affine = inv(H_R_V) @ H_VR_des @ H_R_V
             right_queue.put(CartesianMoveMessage(affine=relative_right_affine, target=[]))
             
