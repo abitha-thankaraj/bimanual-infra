@@ -94,15 +94,13 @@ def move_robot(queue: mp.Queue, ip: str):
                 move_msg = queue.get()
 
                 if isinstance(move_msg, GripperMoveMessage):
-                    robot.set_gripper_position(
-                        move_msg.target, wait=move_msg.wait)
+                    robot.set_gripper_position(move_msg.target, wait=move_msg.wait)
                     continue
 
                 # B button pressed. When the robot stops; that becomes the new init frame.
                 if move_msg.is_terminal:
                     home_pose = robot.get_position_aa()[1]  # translation in mm
-                    home_affine = robot_pose_aa_to_affine(
-                        home_pose)  # translation in m
+                    home_affine = robot_pose_aa_to_affine(home_pose)  # translation in m
                     print("Resetting : {}".format(home_pose))
                     continue
 
@@ -116,17 +114,14 @@ def move_robot(queue: mp.Queue, ip: str):
                 target_affine = home_affine @ move_msg.affine
                 print("Target affine: {}".format(target_affine))
 
-                target_pose = affine_to_robot_pose_aa(
-                    target_affine).tolist()  # Translation in mm
+                target_pose = affine_to_robot_pose_aa(target_affine).tolist()
 
                 # If this target pose is too far from the current pose, move it to the closest point on the boundary.
-
                 current_pose = robot.get_position_aa()[1]
 
                 # When using servo commands, the maximum distance the robot can move is 10mm; clip translations accordingly.
 
-                delta_translation = np.array(
-                    target_pose[:3]) - np.array(current_pose[:3])
+                delta_translation = np.array(target_pose[:3]) - np.array(current_pose[:3])
 
                 delta_translation = np.clip(delta_translation,
                                             a_min=ROBOT_SERVO_MODE_STEP_LIMITS[0],
