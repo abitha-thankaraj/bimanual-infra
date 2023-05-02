@@ -27,7 +27,7 @@ class ControllerState:
     right_local_position: np.ndarray[Tuple[float, float, float]]
     right_local_rotation: np.ndarray[Tuple[float, float, float, float]]
 
-    created_ts: float
+    created_timestamp: float
 
     @property
     def right_position(self) -> np.ndarray:
