@@ -1,4 +1,5 @@
 import time
+import socket
 import numpy as np
 from enum import Enum
 from xarm import XArmAPI
@@ -59,6 +60,18 @@ class Robot(XArmAPI):
         self.set_mode(mode.value)
         self.set_state(state)
         self.set_gripper_mode(0)  # Gripper is always in position control.
+        
+    def read_force_data(self):
+        self.motion_enable(enable=True)
+        self.ft_sensor_enable(0)
+        self.clear()
+        self.ft_sensor_enable(1)
+        time.sleep(0.5)
+        self.ft_sensor_set_zero()
+        while self.connected and self.error_code == 0:
+            print('raw_force: {}'.format(self.ft_raw_force))
+            print('exe_force: {}'.format(self.ft_ext_force))
+            time.sleep(0.2)
 
     def reset(self):
         # Clean error
