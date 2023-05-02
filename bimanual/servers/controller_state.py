@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import Tuple
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from bimanual.servers import FLIP_MATRIX
 
 @dataclass
 class ControllerState:
@@ -55,13 +54,10 @@ class ControllerState:
         x, y, z -> z, x, y; Flip matrix is used to do that. We have no translations for now.
         """
 
-        flip_affine = np.block([[FLIP_MATRIX, np.zeros((3, 1))],
-                                [np.zeros((1, 3)), 1]])
-        
         controller_affine = np.block([[R.as_matrix(R.from_quat(controller_rotation)), controller_position[:, np.newaxis]],
                                 [np.zeros((1, 3)), 1.]])
         
-        return flip_affine @ controller_affine
+        return controller_affine
 
 
 def parse_controller_state(to_string_output: str) -> ControllerState:

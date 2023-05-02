@@ -1,28 +1,14 @@
 import zmq
-import time
 import numpy as np
 import multiprocessing as mp
 
-from bimanual.servers import CONTROL_TIME_PERIOD, FLIP_MATRIX, H_F
-# , H_F
+from bimanual.servers import H_R_V
 from bimanual.servers.controller_state import parse_controller_state
 from bimanual.hardware.robot import CartesianMoveMessage, GripperMoveMessage
 
-robot_home_affine = np.array([[ 1.00e+00, -2.21e-13, -1.27e-06,  2.06e-01],
- [ 2.21e-13, -1.00e+00,  3.46e-07, -6.60e-08],
- [-1.27e-06, -3.46e-07, -1.00e+00, 4.75e-01],
- [ 0.00e+00,  0.00e+00,  0.00e+00,  1.00e+00]])
 
 def inv(H):
     return np.linalg.pinv(H)
-
-def get_homogenous_inv(homogenous_matrix):
-    """ Returns the inverse of a homogenous matrix. """
-    R = homogenous_matrix[:3, :3]
-    t = homogenous_matrix[:3, 3]
-    inv_R = R.T
-    inv_t = -R.T @ t
-    return np.block([[inv_R, inv_t[:, np.newaxis]], [np.zeros((1, 3)), 1.]])
 
 
 def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
@@ -45,11 +31,8 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
     # Calibration frames
     init_left_affine, init_right_affine = None, None
 
-    # Last sent message timestamp. Used to control the frequency of messages sent to the queue.
-    last_ts = None
-
     print("Starting server...")
-    i = 0
+
     while True:
         # Wait for a message from the client
         message = socket.recv_string()
@@ -59,14 +42,10 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
 
         controller_state = parse_controller_state(message)
 
-        # Debug message
-        # pprint.pprint(controller_state)
-
         # Pressing A button calibrates first frame and starts teleop
         if controller_state.right_a:
 
             start_teleop = True
-            last_ts = time.time()
             init_left_affine, init_right_affine = controller_state.left_affine, controller_state.right_affine
 
         # Pressing B button stops teleop. And resets calibration frames to None.
@@ -78,74 +57,28 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
             left_queue.put(CartesianMoveMessage(target=None))
 
         if start_teleop:
-            # Why do you need a rate limiter here?
-            # TODO: Check if this can be removed. You're dropping messages here. Does this make it smoother/ jerkier?
-
-            # if time.time() - last_ts >= CONTROL_TIME_PERIOD:
-                # end_affine = relative_affine @ start_affine
-            i+=1
             
-            # relative_right_affine = controller_state.right_affine @ np.linalg.pinv(init_right_affine)
-
-            # relative_right_affine = controller_state.right_affine @ np.linalg.pinv(init_right_affine)
-
-            # K = robot_home_affine @ np.linalg.pinv(init_right_affine)
-            # print(H_F @ relative_right_affine @ np.linalg.pinv(H_F))
-            # H_R1_R0 = H_F @ relative_right_affine @ np.linalg.pinv(H_F)
-
             ## LP edits
-            H_V_0_B = init_right_affine
-            H_V_1_B = controller_state.right_affine
-            H_V_des = inv(H_V_0_B) @ H_V_1_B
+            H_VR_des = inv(init_right_affine) @ controller_state.right_affine
 
             H_R_V = np.array([[0, -1, 0, 0],
                               [0, 0, -1, 0],
                               [-1, 0, 0, 0],
                               [0, 0, 0, 1]])
             
-            H_R_1_R_0 = inv(H_R_V) @ H_V_des @ H_R_V
-
-            if i%20 == 0:
-                print(robot_home_affine @ H_R_1_R_0)
-                pass
-                # print("Right affine; Aligned :\n {}".format(controller_state.right_affine))
-                # print("Robot desired transform :\n {}".format(H_R_1_R_0))
-            
-                # print("Controller affine :\n {}".format(controller_state.right_affine))
-                # print("H_t :\n {}".format(relative_right_affine))
-
-                # print("R_t :\n {}".format(H_t @ robot_home_affine))
-                
-                # print("Relative H :\n {}".format(relative_right_affine))
-                # print(H_R1_R0 @ robot_home_affine @ np.linalg.pinv(init_right_affine))
-
-            relative_right_affine = H_R_1_R_0
+            relative_right_affine = inv(H_R_V) @ H_VR_des @ H_R_V
             right_queue.put(CartesianMoveMessage(affine=relative_right_affine, target=[]))
             
-            # right_queue.put(CartesianMoveMessage(affine=relative_right_affine, target=[]))
+            H_VL_des = inv(init_left_affine) @ controller_state.left_affine
+            relative_left_affine = inv(H_R_V) @ H_VL_des @ H_R_V
+            left_queue.put(CartesianMoveMessage(affine=relative_left_affine, target=[]))
 
-            H_VL_0_B = init_left_affine
-            H_VL_1_B = controller_state.left_affine
-            H_VL_des = inv(H_VL_0_B) @ H_VL_1_B
-
-            H_R_VL = np.array([[0, -1, 0, 0],
-                              [0, 0, -1, 0],
-                              [-1, 0, 0, 0],
-                              [0, 0, 0, 1]])
-            
-            H_R_1_R_0L = inv(H_R_VL) @ H_VL_des @ H_R_VL
-
-            # relative_left_affine = controller_state.left_affine @ np.linalg.pinv(init_left_affine)
-            left_queue.put(CartesianMoveMessage(affine=H_R_1_R_0L, target=[]))
-
-                # last_ts = time.time()
 
         # # Index trigger to close; hand trigger to open.
         if controller_state.left_index_trigger > 0.5:
             left_queue.put(GripperMoveMessage(0., wait=False))
 
         elif controller_state.left_hand_trigger > 0.5:
-            # TODO: Move open to consts
             left_queue.put(GripperMoveMessage(400, wait=False))
 
         if controller_state.right_index_trigger > 0.5:
@@ -153,35 +86,3 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
 
         elif controller_state.right_hand_trigger > 0.5:
             right_queue.put(GripperMoveMessage(400, wait=False))
-
-
-def start_server_stream(queue: mp.Queue):
-    np.set_printoptions(precision=3, suppress=True)
-    """ Opens zmq socket to receive controller state messages from the oculus. 
-        Controller states are parsed and sent as affines to shared message queus to be accessed by each xarm.
-    """
-
-    # Set up the ZeroMQ context
-    context = zmq.Context()
-
-    # Create a REP (reply) socket
-    socket = context.socket(zmq.REP)
-
-    # Bind the socket to a specific address and port
-    socket.bind("tcp://*:5555")
-
-    print("Starting server...")
-    i = 0
-    while True:
-        # Wait for a message from the client
-        message = socket.recv_string()
-
-        # REP socket must send a reply back.
-        socket.send_string("OK: Received message")
-
-        controller_state = parse_controller_state(message)
-
-        queue.put(controller_state)
-
-
-

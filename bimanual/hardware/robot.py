@@ -71,7 +71,7 @@ class Robot(XArmAPI):
         self.clear()
         self.set_mode_and_state(RobotControlMode.CARTESIAN_CONTROL, 0)
         # Move to predefined home position using cartesian control
-        status = self.set_position_aa(ROBOT_HOME_POSE_AA, wait=True) #TODO: Get joint states and set them. Derterministic.
+        status = self.set_position_aa(ROBOT_HOME_POSE_AA, wait=True) #TODO: Get joint states and set them. Deterministic.
         assert status == 0, "Failed to set robot at home position"
         # Set mode to servo control
         self.set_mode_and_state(RobotControlMode.SERVO_CONTROL, 0)
@@ -82,7 +82,7 @@ class Robot(XArmAPI):
 
 def move_robot(queue: mp.Queue, ip: str):
     np.set_printoptions(precision=3, suppress=True)
-    # Initialize xArm API
+
     robot = Robot(ip, is_radian=True)
 
     # Initialize timestamp; used to send messages to the robot at a fixed frequency.
@@ -91,10 +91,8 @@ def move_robot(queue: mp.Queue, ip: str):
 
     status, home_pose = robot.get_position_aa()
     assert status == 0, "Failed to get robot position"
-    # print("Robot position: {}".format(home_pose))
 
     home_affine = robot_pose_aa_to_affine(home_pose)
-    # print("Home affine: {}".format(home_affine))
 
 
     while True:
@@ -102,7 +100,7 @@ def move_robot(queue: mp.Queue, ip: str):
             if not queue.empty():
                 move_msg = queue.get()
 
-                if type(move_msg).__name__ == "GripperMoveMessage":
+                if type(move_msg).__name__ == "GripperMoveMessage": #TODO: Use isinstance
                     robot.set_gripper_position(move_msg.target, wait=move_msg.wait)
                     continue
 
@@ -120,55 +118,35 @@ def move_robot(queue: mp.Queue, ip: str):
                     home_affine = robot_pose_aa_to_affine(home_pose)
                     continue
 
-                # end_affine =  relative_affine @ start_affine
-
-                # print("Move message - relative affine: {}".format(move_msg.affine))
-                # print("Home affine: {}".format(home_affine))
-
                 target_affine = home_affine @ move_msg.affine 
                 print("Target affine: {}".format(target_affine))
                 
                 target_pose = affine_to_robot_pose_aa(target_affine).tolist() # Translation in mm
-                # print("Target pose: {}".format(target_pose))
-
+                
                 # If this target pose is too far from the current pose, move it to the closest point on the boundary.
 
                 current_pose = robot.get_position_aa()[1]
 
                 # When using servo commands, the maximum distance the robot can move is 10mm; clip translations accordingly.
-                # -5, 5 is a loose safety margin; should be fine for now.
-                # TODO: Make this a parameter. + smaller!
-
+                
                 delta_translation = np.array(target_pose[:3]) - np.array(current_pose[:3])
-                # print("Delta translation: {}".format(delta_translation))
                 delta_translation = np.clip(delta_translation, 
                                             a_min = ROBOT_SERVO_MODE_STEP_LIMITS[0], 
                                             a_max = ROBOT_SERVO_MODE_STEP_LIMITS[1])
                 # print("Delta translation clipped: {}".format(delta_translation))
                 # a_min and a_max are the boundaries of the robot's workspace; clip absolute position to these boundaries.
 
-                # print("Current position: {}".format(current_pose[:3]))
                 des_translation = delta_translation + np.array(current_pose[:3])
-                # print("Des translation: {}".format(des_translation))
                 des_translation = np.clip(des_translation, a_min=ROBOT_WORKSPACE[0], a_max=ROBOT_WORKSPACE[1]).tolist()
 
-                # print("Des translation clipped: {}".format(des_translation))
-
-                # TODO: How do you clip axes angles? (to quaternions and scale?) Do you need to?
                 des_rotation = target_pose[3:]
 
                 des_pose = des_translation + des_rotation
-                # print("Des pose: {}".format(des_pose))
-
-                # exit()
                 
 				#TODO: Get all the parameters from the message?
                 x = robot.set_servo_cartesian_aa(
                     des_pose, wait=False, relative=False, mvacc=200, speed=50
                 )
-
-                # assert x == 0, "Failed to set robot position: return code {}".format(
-                #     x)
 
                 last_sent_msg_ts = time.time()
 
