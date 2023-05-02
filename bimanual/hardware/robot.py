@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from xarm import XArmAPI
 
+from bimanual.servers.robot_state import RobotState
 from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa
 from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_POSE_AA, ROBOT_SERVO_MODE_STEP_LIMITS
 
@@ -78,6 +79,15 @@ class Robot(XArmAPI):
         # Wait for mode switch to complete
         time.sleep(0.1)
 
+    def get_current_state(self) -> RobotState:
+        # TODO: Add check for error code in get commands.
+        return RobotState(
+            current_timestamp=time.time(),
+            pose_aa=self.get_position_aa()[1],
+            joint_angles=self.get_servo_angle()[1],
+            gripper_state=self.get_gripper_position()[1],
+            force_info=None  # TODO: Bobby
+        )
 
 
 def move_robot(queue: mp.Queue, ip: str):
