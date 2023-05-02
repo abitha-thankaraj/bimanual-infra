@@ -3,11 +3,12 @@ import numpy as np
 import pandas as pd
 from typing import Tuple
 from dataclasses import dataclass
+from bimanual.servers.state import State
 from scipy.spatial.transform import Rotation as R
 
 
 @dataclass
-class ControllerState:
+class ControllerState(State):
     left_x: bool
     left_y: bool
     left_menu: bool
@@ -66,14 +67,6 @@ class ControllerState:
         return np.block([[R.as_matrix(R.from_quat(controller_rotation)), controller_position[:, np.newaxis]],
                          [np.zeros((1, 3)), 1.]])
 
-    def to_df(self):
-        """ Convert an instance of ControllerState to a pandas DataFrame. """
-        for key, value in self.__dict__.items():
-            # numpy arrays with varying length need to be converted to dtype object for pandas
-            if isinstance(value, np.ndarray):
-                self.__dict__[key] = pd.Series([value], dtype=object)
-        return pd.DataFrame(self.__dict__)
-
 
 def parse_controller_state(controller_state_string: str) -> ControllerState:
 
@@ -111,7 +104,7 @@ def parse_controller_state(controller_state_string: str) -> ControllerState:
     left_parsed = parse_section(left_data)
     right_parsed = parse_section(right_data)
 
-    return ControllerState(*left_parsed, *right_parsed, time.time())
+    return ControllerState(time.time(), *left_parsed, *right_parsed)
 
 
 # TODO: Move this to a test file
@@ -121,12 +114,12 @@ if __name__ == "__main__":
     controller_state = parse_controller_state(test_msg)
     controller_state_df = controller_state.to_df()
 
-    # from bimanual.utils.loggers import write_to_csv
-    # from bimanual.utils.debug_utils import DebugTimer
+    from bimanual.utils.loggers import write_to_csv
+    from bimanual.utils.debug_utils import DebugTimer
 
-    # for _ in range(5):
-    #     with DebugTimer("parse_controller_state"): # looks like 0.001s/ 0.002s per call
-    #         write_to_csv("test2.csv", controller_state_df)
+    for _ in range(5):
+        with DebugTimer("write_to_csv"):  # looks like 0.001s/ 0.002s per call
+            write_to_csv("test22.csv", controller_state_df)
 
     from IPython import embed
 
