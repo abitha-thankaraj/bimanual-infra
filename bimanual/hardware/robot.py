@@ -4,8 +4,8 @@ from enum import Enum
 from xarm import XArmAPI
 import multiprocessing as mp
 
-from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_POSE_AA, ROBOT_SERVO_MODE_STEP_LIMITS
 from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa
+from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_POSE_AA, ROBOT_SERVO_MODE_STEP_LIMITS
 
 
 class RobotControlMode(Enum):

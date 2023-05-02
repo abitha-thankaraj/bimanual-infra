@@ -68,7 +68,7 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
             left_queue.put(CartesianMoveMessage(affine=relative_left_affine, target=[]))
 
 
-        # # Index trigger to close; hand trigger to open.
+        # Index trigger to close; hand trigger to open.
         if controller_state.left_index_trigger > 0.5:
             left_queue.put(GripperMoveMessage(0., wait=False))
 
