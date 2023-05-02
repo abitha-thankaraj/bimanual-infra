@@ -13,6 +13,9 @@ robot_home_affine = np.array([[ 1.00e+00, -2.21e-13, -1.27e-06,  2.06e-01],
  [-1.27e-06, -3.46e-07, -1.00e+00, 4.75e-01],
  [ 0.00e+00,  0.00e+00,  0.00e+00,  1.00e+00]])
 
+def inv(H):
+    return np.linalg.pinv(H)
+
 def get_homogenous_inv(homogenous_matrix):
     """ Returns the inverse of a homogenous matrix. """
     R = homogenous_matrix[:3, :3]
@@ -23,7 +26,7 @@ def get_homogenous_inv(homogenous_matrix):
 
 
 def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
-    np.set_printoptions(precision=2)
+    np.set_printoptions(precision=3, suppress=True)
     """ Opens zmq socket to receive controller state messages from the oculus. 
         Controller states are parsed and sent as affines to shared message queus to be accessed by each xarm.
     """
@@ -84,28 +87,44 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
             
             # relative_right_affine = controller_state.right_affine @ np.linalg.pinv(init_right_affine)
 
-            relative_right_affine = controller_state.right_affine @ get_homogenous_inv(init_right_affine)
+            # relative_right_affine = controller_state.right_affine @ np.linalg.pinv(init_right_affine)
 
             # K = robot_home_affine @ np.linalg.pinv(init_right_affine)
-
             # print(H_F @ relative_right_affine @ np.linalg.pinv(H_F))
-            # H_R1_R0 = H_F @ relative_right_affine @ get_homogenous_inv(H_F)
+            # H_R1_R0 = H_F @ relative_right_affine @ np.linalg.pinv(H_F)
+
+            ## LP edits
+            H_V_0_B = init_right_affine
+            H_V_1_B = controller_state.right_affine
+            H_V_des = inv(H_V_0_B) @ H_V_1_B
+
+            H_R_V = np.array([[0, -1, 0, 0],
+                              [0, 0, -1, 0],
+                              [-1, 0, 0, 0],
+                              [0, 0, 0, 1]])
+            
+            H_R_1_R_0 = inv(H_R_V) @ H_V_des @ H_R_V
+
             if i%20 == 0:
-                print("Right affine; Aligned :\n {}".format(controller_state.right_affine))
+                print(robot_home_affine @ H_R_1_R_0)
+                pass
+                # print("Right affine; Aligned :\n {}".format(controller_state.right_affine))
+                # print("Robot desired transform :\n {}".format(H_R_1_R_0))
             
                 # print("Controller affine :\n {}".format(controller_state.right_affine))
-                print("H_t :\n {}".format(relative_right_affine))
+                # print("H_t :\n {}".format(relative_right_affine))
 
                 # print("R_t :\n {}".format(H_t @ robot_home_affine))
                 
                 # print("Relative H :\n {}".format(relative_right_affine))
                 # print(H_R1_R0 @ robot_home_affine @ np.linalg.pinv(init_right_affine))
 
+            relative_right_affine = H_R_1_R_0
             right_queue.put(CartesianMoveMessage(affine=relative_right_affine, target=[]))
             
             # right_queue.put(CartesianMoveMessage(affine=relative_right_affine, target=[]))
 
-            relative_left_affine = controller_state.left_affine @ get_homogenous_inv(init_left_affine)
+            relative_left_affine = controller_state.left_affine @ np.linalg.pinv(init_left_affine)
             left_queue.put(CartesianMoveMessage(affine=relative_left_affine, target=[]))
 
                 # last_ts = time.time()
@@ -123,3 +142,35 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
 
         # elif controller_state.right_hand_trigger > 0.5:
         #     right_queue.put(GripperMoveMessage(300, wait=False))
+
+
+def start_server_stream(queue: mp.Queue):
+    np.set_printoptions(precision=3, suppress=True)
+    """ Opens zmq socket to receive controller state messages from the oculus. 
+        Controller states are parsed and sent as affines to shared message queus to be accessed by each xarm.
+    """
+
+    # Set up the ZeroMQ context
+    context = zmq.Context()
+
+    # Create a REP (reply) socket
+    socket = context.socket(zmq.REP)
+
+    # Bind the socket to a specific address and port
+    socket.bind("tcp://*:5555")
+
+    print("Starting server...")
+    i = 0
+    while True:
+        # Wait for a message from the client
+        message = socket.recv_string()
+
+        # REP socket must send a reply back.
+        socket.send_string("OK: Received message")
+
+        controller_state = parse_controller_state(message)
+
+        queue.put(controller_state)
+
+
+

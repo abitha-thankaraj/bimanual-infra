@@ -2,15 +2,15 @@ import numpy as np
 
 # Robot constants
 # Controller to robot rotation.
-FLIP_MATRIX = np.array(
-    [
-    [0, 0, -1],
-    [1, 0, 0],
-    [0, 1, 0]
-    ]
-)
+# FLIP_MATRIX = np.array(
+#     [
+#     [0, 0, -1],
+#     [1, 0, 0],
+#     [0, 1, 0]
+#     ]
+# )
 
-# FLIP_MATRIX = np.eye(3)
+FLIP_MATRIX = np.eye(3)
 H_F = np.array(
     [
     [0, 0, -1, 0],
@@ -24,7 +24,7 @@ H_F = np.array(
 # Robot workspace position limits.
 x_min, x_max = 206, 506
 y_min, y_max = -200, 200
-z_min, z_max = 280, 550
+z_min, z_max = 100, 550
 
 ROBOT_WORKSPACE = np.array([[x_min, y_min, z_min], [x_max, y_max, z_max]])
 

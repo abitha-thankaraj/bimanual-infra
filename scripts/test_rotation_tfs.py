@@ -1,5 +1,4 @@
 import numpy as np
-import numpy as np
 from scipy.spatial.transform import Rotation
 from bimanual.servers.state_server import get_homogenous_inv
 

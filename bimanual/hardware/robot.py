@@ -77,7 +77,7 @@ class Robot(XArmAPI):
         
 
 def move_robot(queue: mp.Queue, ip: str):
-    np.set_printoptions(precision=2)
+    np.set_printoptions(precision=3, suppress=True)
     # Initialize xArm API
     robot = Robot(ip, is_radian=True)
 
@@ -87,10 +87,10 @@ def move_robot(queue: mp.Queue, ip: str):
 
     status, home_pose = robot.get_position_aa()
     assert status == 0, "Failed to get robot position"
-    print("Robot position: {}".format(home_pose))
+    # print("Robot position: {}".format(home_pose))
 
     home_affine = robot_pose_aa_to_affine(home_pose)
-    print("Home affine: {}".format(home_affine))
+    # print("Home affine: {}".format(home_affine))
 
 
     while True:
@@ -114,14 +114,14 @@ def move_robot(queue: mp.Queue, ip: str):
 
                 # end_affine =  relative_affine @ start_affine
 
-                print("Move message - relative affine: {}".format(move_msg.affine))
-                print("Home affine: {}".format(home_affine))
+                # print("Move message - relative affine: {}".format(move_msg.affine))
+                # print("Home affine: {}".format(home_affine))
 
-                target_affine = move_msg.affine @ home_affine
+                target_affine = home_affine @ move_msg.affine 
                 print("Target affine: {}".format(target_affine))
                 
                 target_pose = affine_to_robot_pose_aa(target_affine).tolist() # Translation in mm
-                print("Target pose: {}".format(target_pose))
+                # print("Target pose: {}".format(target_pose))
 
                 # If this target pose is too far from the current pose, move it to the closest point on the boundary.
 
@@ -132,14 +132,14 @@ def move_robot(queue: mp.Queue, ip: str):
                 # TODO: Make this a parameter. + smaller!
 
                 delta_translation = np.array(target_pose[:3]) - np.array(current_pose[:3])
-                print("Delta translation: {}".format(delta_translation))
+                # print("Delta translation: {}".format(delta_translation))
                 delta_translation = np.clip(delta_translation, 
                                             a_min = ROBOT_SERVO_MODE_STEP_LIMITS[0], 
                                             a_max = ROBOT_SERVO_MODE_STEP_LIMITS[1])
-                print("Delta translation clipped: {}".format(delta_translation))
+                # print("Delta translation clipped: {}".format(delta_translation))
                 # a_min and a_max are the boundaries of the robot's workspace; clip absolute position to these boundaries.
 
-                print("Current position: {}".format(current_pose[:3]))
+                # print("Current position: {}".format(current_pose[:3]))
                 des_translation = delta_translation + np.array(current_pose[:3])
                 # print("Des translation: {}".format(des_translation))
                 des_translation = np.clip(des_translation, a_min=ROBOT_WORKSPACE[0], a_max=ROBOT_WORKSPACE[1]).tolist()
@@ -150,7 +150,7 @@ def move_robot(queue: mp.Queue, ip: str):
                 des_rotation = target_pose[3:]
 
                 des_pose = des_translation + des_rotation
-                print("Des pose: {}".format(des_pose))
+                # print("Des pose: {}".format(des_pose))
 
                 # exit()
                 
