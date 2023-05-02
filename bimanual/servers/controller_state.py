@@ -66,6 +66,14 @@ class ControllerState:
         return np.block([[R.as_matrix(R.from_quat(controller_rotation)), controller_position[:, np.newaxis]],
                          [np.zeros((1, 3)), 1.]])
 
+    def to_df(self):
+        """ Convert an instance of ControllerState to a pandas DataFrame. """
+        for key, value in self.__dict__.items():
+            # numpy arrays with varying length need to be converted to dtype object for pandas
+            if isinstance(value, np.ndarray):
+                self.__dict__[key] = pd.Series([value], dtype=object)
+        return pd.DataFrame(self.__dict__)
+
 
 def parse_controller_state(controller_state_string: str) -> ControllerState:
 
@@ -106,21 +114,20 @@ def parse_controller_state(controller_state_string: str) -> ControllerState:
     return ControllerState(*left_parsed, *right_parsed, time.time())
 
 
-def controller_state_to_df(controller_state: ControllerState) -> pd.DataFrame:
-    return pd.DataFrame(dict(
-        left_affine=pd.Series([controller_state.left_affine.tolist()]),
-        right_affine=pd.Series([controller_state.right_affine.tolist()]),
-        left_local_position=pd.Series([controller_state.left_local_position.tolist()]),
-        left_local_rotation=pd.Series([controller_state.left_local_rotation.tolist()]),
-        right_local_position=pd.Series([controller_state.right_local_position.tolist()]),
-        right_local_rotation=pd.Series([controller_state.right_local_rotation.tolist()])
-        ))
-
-
 # TODO: Move this to a test file
 if __name__ == "__main__":
     # Sample message
     test_msg = "Left Controller:;  Left X: True;  Left Y: False;  Left Menu: False;  Left Thumbstick: False;  Left Index Trigger: 0;  Left Hand Trigger: 0;  Left Thumbstick Axes: 0,0;  Left Local Position: -0.6630062,0.7440274,0.08777055;  Left Local Rotation: 0.1541033,-0.04510121,0.5017885,0.8499568;|Right Controller:;  Right A: False;  Right B: False;  Right Menu: False;  Right Thumbstick: False;  Right Index Trigger: 0;  Right Hand Trigger: 0;  Right Thumbstick Axes: 0,0;  Right Local Position: -0.5966942,0.749879,0.1490001;  Right Local Rotation: 0.1249516,0.1079503,0.3456937,0.9237044;"
     controller_state = parse_controller_state(test_msg)
+    controller_state_df = controller_state.to_df()
+
+    # from bimanual.utils.loggers import write_to_csv
+    # from bimanual.utils.debug_utils import DebugTimer
+
+    # for _ in range(5):
+    #     with DebugTimer("parse_controller_state"): # looks like 0.001s/ 0.002s per call
+    #         write_to_csv("test2.csv", controller_state_df)
+
     from IPython import embed
+
     embed()
