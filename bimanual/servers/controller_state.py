@@ -92,7 +92,7 @@ def parse_controller_state(to_string_output: str) -> ControllerState:
             # Thumbstick
             parse_list_float(data[6]),
             # Pose
-            parse_list_float(data[7]),
+            parse_list_float(data[7]), #* SCALE_FACTOR, # Make all cordinates in mm.
             parse_list_float(data[8])
         )
 

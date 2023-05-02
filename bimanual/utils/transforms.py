@@ -12,8 +12,12 @@ def robot_pose_aa_to_affine(pose_aa: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 4x4 affine matrix [[R, t],[0, 1]]
     """
+    # print("Robot pose aa: ", pose_aa)
 
-    return np.block([[R.from_rotvec(pose_aa[3:]).as_matrix(), np.array(pose_aa[:3])[:, np.newaxis]/SCALE_FACTOR],
+    rotation = R.from_rotvec(pose_aa[3:]).as_matrix()
+    translation = np.array(pose_aa[:3]) / SCALE_FACTOR
+
+    return np.block([[rotation, translation[:, np.newaxis]],
                      [0, 0, 0, 1]])
 
 
@@ -25,7 +29,13 @@ def affine_to_robot_pose_aa(affine: np.ndarray) -> np.ndarray:
         list: [x, y, z, ax, ay, az] where (x, y, z) is the position and (ax, ay, az) is the axis-angle rotation.
         x, y, z are in mm and ax, ay, az are in radians.
     """
-    translation = affine[:3, 3] * SCALE_FACTOR
+    # print("Affine to robot")
+    # print("Affine: {}".format(affine))
+    # print("Translation: {}".format(affine[:3, 3]))
+    # print("Rotation: {}".format(R.from_matrix(affine[:3, :3]).as_rotvec()))
+
+    translation = affine[:3, 3]
+    # * SCALE_FACTOR
     rotation = R.from_matrix(affine[:3, :3]).as_rotvec()
     return np.concatenate([translation, rotation])
 
