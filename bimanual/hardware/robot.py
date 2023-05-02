@@ -138,8 +138,7 @@ def move_robot(queue: mp.Queue, ip: str):
                 des_pose = des_translation + des_rotation
 
                 # TODO: Get all the parameters from the message?
-                robot.set_servo_cartesian_aa(
-                    des_pose, wait=False, relative=False, mvacc=200, speed=50)
+                robot.set_servo_cartesian_aa(des_pose, wait=False, relative=False, mvacc=200, speed=50)
 
                 last_sent_msg_ts = time.time()
 
