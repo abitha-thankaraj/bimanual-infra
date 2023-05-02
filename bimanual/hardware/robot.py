@@ -5,7 +5,6 @@ from enum import Enum
 
 from typing import List
 import multiprocessing as mp
-from dataclasses import dataclass
 
 from xarm import XArmAPI
 
@@ -82,6 +81,7 @@ class Robot(XArmAPI):
     def get_current_state(self) -> RobotState:
         # TODO: Add check for error code in get commands.
         return RobotState(
+            # Should you initialize a common timestamp for all logs? for each log, use the timestamp during execution.
             current_timestamp=time.time(),
             pose_aa=self.get_position_aa()[1],
             joint_angles=self.get_servo_angle()[1],
@@ -144,8 +144,7 @@ def move_robot(queue: mp.Queue, ip: str):
 
                 # a_min and a_max are the boundaries of the robot's workspace; clip absolute position to these boundaries.
 
-                des_translation = delta_translation + \
-                    np.array(current_pose[:3])
+                des_translation = delta_translation + np.array(current_pose[:3])
                 des_translation = np.clip(des_translation,
                                           a_min=ROBOT_WORKSPACE[0],
                                           a_max=ROBOT_WORKSPACE[1]).tolist()
