@@ -124,8 +124,19 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
             
             # right_queue.put(CartesianMoveMessage(affine=relative_right_affine, target=[]))
 
-            relative_left_affine = controller_state.left_affine @ np.linalg.pinv(init_left_affine)
-            left_queue.put(CartesianMoveMessage(affine=relative_left_affine, target=[]))
+            H_VL_0_B = init_left_affine
+            H_VL_1_B = controller_state.left_affine
+            H_VL_des = inv(H_VL_0_B) @ H_VL_1_B
+
+            H_R_VL = np.array([[0, -1, 0, 0],
+                              [0, 0, -1, 0],
+                              [-1, 0, 0, 0],
+                              [0, 0, 0, 1]])
+            
+            H_R_1_R_0L = inv(H_R_VL) @ H_VL_des @ H_R_VL
+
+            # relative_left_affine = controller_state.left_affine @ np.linalg.pinv(init_left_affine)
+            left_queue.put(CartesianMoveMessage(affine=H_R_1_R_0L, target=[]))
 
                 # last_ts = time.time()
 
@@ -135,13 +146,13 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
 
         elif controller_state.left_hand_trigger > 0.5:
             # TODO: Move open to consts
-            left_queue.put(GripperMoveMessage(300, wait=False))
+            left_queue.put(GripperMoveMessage(400, wait=False))
 
         if controller_state.right_index_trigger > 0.5:
             right_queue.put(GripperMoveMessage(0., wait=False))
 
         elif controller_state.right_hand_trigger > 0.5:
-            right_queue.put(GripperMoveMessage(300, wait=False))
+            right_queue.put(GripperMoveMessage(400, wait=False))
 
 
 def start_server_stream(queue: mp.Queue):

@@ -12,17 +12,17 @@ if __name__ == "__main__":
 
     try:
         right_moving_process = mp.Process(target = move_robot, args=(right_message_queue, RIGHT_ARM_IP), name = "move_robot_right_proc")
-        # left_moving_process = mp.Process(target = move_robot, args=(left_message_queue, LEFT_ARM_IP), name = "move_robot_left_proc")
+        left_moving_process = mp.Process(target = move_robot, args=(left_message_queue, LEFT_ARM_IP), name = "move_robot_left_proc")
         start_server_process = mp.Process(target= start_server, args =(left_message_queue, right_message_queue,), name="server_proc")
 
         right_moving_process.start()
-        # left_moving_process.start()
+        left_moving_process.start()
         start_server_process.start()
     
     # keyboard interrupt exception
     except KeyboardInterrupt:
         right_moving_process.join()
-        # left_moving_process.join()
+        left_moving_process.join()
         start_server_process.join()
 
         print("Exiting...")
