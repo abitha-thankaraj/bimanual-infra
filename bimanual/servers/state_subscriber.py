@@ -9,7 +9,7 @@ from bimanual.servers.controller_state import parse_controller_state
 from bimanual.hardware.robot import CartesianMoveMessage, GripperMoveMessage
 
 
-def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
+def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue):
     """ Opens zmq socket to receive controller state messages from the oculus. 
         Controller states are parsed and sent as affines to shared message queus to be accessed by each xarm.
     """

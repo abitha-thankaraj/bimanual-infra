@@ -2,7 +2,7 @@ import numpy as np
 import multiprocessing as mp
 
 from bimanual.hardware.robot import move_robot
-from bimanual.servers.state_server import start_server
+from bimanual.servers.state_subscriber import start_subscriber
 from bimanual.servers import RIGHT_ARM_IP, LEFT_ARM_IP
 
 
@@ -24,21 +24,21 @@ if __name__ == "__main__":
                                                LEFT_ARM_IP),
                                          name="move_robot_left_proc")
         # Server to receive state from Oculus
-        start_server_process = mp.Process(target=start_server,
+        start_subscriber_process = mp.Process(target=start_subscriber,
                                           args=(left_message_queue,
                                                 right_message_queue,),
-                                          name="server_proc")
+                                          name="subscriber_proc")
 
         right_moving_process.start()
         left_moving_process.start()
-        start_server_process.start()
+        start_subscriber_process.start()
 
     # keyboard interrupt exception;
     # TODO: Use a button on the controller to exit; Maybe some lock shared across processes?
     except KeyboardInterrupt:
         right_moving_process.join()
         left_moving_process.join()
-        start_server_process.join()
+        start_subscriber_process.join()
 
         print("Exiting...")
         exit()

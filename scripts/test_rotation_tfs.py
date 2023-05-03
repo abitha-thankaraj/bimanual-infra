@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
-from bimanual.servers.state_server import get_homogenous_inv
+from bimanual.servers.state_subscriber import get_homogenous_inv
 
 if __name__ == "__main__":
     # generate a random rotation matrix
