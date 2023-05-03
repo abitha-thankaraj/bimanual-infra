@@ -107,6 +107,7 @@ def move_robot(queue: mp.Queue, ip: str):
         if (time.time() - last_sent_msg_ts) > CONTROL_TIME_PERIOD:
             if not queue.empty():
                 move_msg = queue.get()
+                # TODO: Add df record
 
                 if isinstance(move_msg, GripperMoveMessage):
                     robot.set_gripper_position(
@@ -155,6 +156,16 @@ def move_robot(queue: mp.Queue, ip: str):
                 # TODO: Get all the parameters from the message?
                 robot.set_servo_cartesian_aa(
                     des_pose, wait=False, relative=False, mvacc=200, speed=50)
+
+                # Populate all records for state.
+                RobotState(
+                    # Should this be before or after the robot moves?
+                    current_timestamp=last_sent_msg_ts,
+                    pose_aa=current_pose,
+                    joint_angles=None,
+                    gripper_state=None,
+                    force_info=None
+                )
 
                 last_sent_msg_ts = time.time()
 
