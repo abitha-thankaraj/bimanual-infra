@@ -9,7 +9,7 @@ from bimanual.servers.controller_state import parse_controller_state
 from bimanual.hardware.robot import CartesianMoveMessage, GripperMoveMessage
 
 
-def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue):
+def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp.Event = None):
     """ Opens zmq socket to receive controller state messages from the oculus. 
         Controller states are parsed and sent as affines to shared message queus to be accessed by each xarm.
     """
@@ -38,9 +38,13 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue):
 
     last_ts = time.time()
 
-    while True:
+    while exit_event is None or not exit_event.is_set():
         # Subscribe to topic
         message = socket.recv_string()
+        # TODO: Figure out why you get topic name and then message; may have something to do with zmq reading.
+        if message == "oculus_controller":
+            continue
+        print("Received msg")
 
         # TODO: Rate limit this to 100 Hz; If deltas are too small it's harder to execute.
 
@@ -50,6 +54,16 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue):
         last_ts = time.time()
 
         controller_state = parse_controller_state(message)
+
+        # Pressing B and Y exits the program.
+        if controller_state.left_y and controller_state.right_b:
+            print("Exiting...")
+            # Cleanup zmq context
+            socket.close()
+            context.term()
+            # Set the exit event to signal both arms to stop.
+            exit_event.set()
+            return
 
         # Pressing A button calibrates first frame and starts teleop
         if controller_state.right_a:

@@ -90,7 +90,7 @@ class Robot(XArmAPI):
         )
 
 
-def move_robot(queue: mp.Queue, ip: str):
+def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
 
     robot = Robot(ip, is_radian=True)
 
@@ -103,7 +103,7 @@ def move_robot(queue: mp.Queue, ip: str):
 
     home_affine = robot_pose_aa_to_affine(home_pose)
 
-    while True:
+    while exit_event is None or not exit_event.is_set():
         if (time.time() - last_sent_msg_ts) > CONTROL_TIME_PERIOD:
             if not queue.empty():
                 move_msg = queue.get()
@@ -145,7 +145,8 @@ def move_robot(queue: mp.Queue, ip: str):
 
                 # a_min and a_max are the boundaries of the robot's workspace; clip absolute position to these boundaries.
 
-                des_translation = delta_translation + np.array(current_pose[:3])
+                des_translation = delta_translation + \
+                    np.array(current_pose[:3])
                 des_translation = np.clip(des_translation,
                                           a_min=ROBOT_WORKSPACE[0],
                                           a_max=ROBOT_WORKSPACE[1]).tolist()
@@ -160,7 +161,7 @@ def move_robot(queue: mp.Queue, ip: str):
                 # Populate all records for state.
                 RobotState(
                     # Should this be before or after the robot moves?
-                    current_timestamp=last_sent_msg_ts,
+                    created_timestamp=last_sent_msg_ts,
                     pose_aa=current_pose,
                     joint_angles=None,
                     gripper_state=None,
@@ -171,3 +172,5 @@ def move_robot(queue: mp.Queue, ip: str):
 
             else:
                 time.sleep(0.001)
+
+    return
