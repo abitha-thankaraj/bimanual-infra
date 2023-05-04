@@ -2,7 +2,7 @@ import numpy as np
 import multiprocessing as mp
 
 from bimanual.hardware.robot import move_robot
-from bimanual.servers.state_server import start_server
+from bimanual.servers.state_subscriber import start_subscriber
 from bimanual.servers import RIGHT_ARM_IP, LEFT_ARM_IP
 
 
@@ -11,34 +11,42 @@ if __name__ == "__main__":
 
     right_message_queue = mp.Queue()
     left_message_queue = mp.Queue()
+    exit_event = mp.Event()
 
     try:
         # Right arm
         right_moving_process = mp.Process(target=move_robot,
                                           args=(right_message_queue,
-                                                RIGHT_ARM_IP),
+                                                RIGHT_ARM_IP,
+                                                exit_event),
                                           name="move_robot_right_proc")
         # Left arm
         left_moving_process = mp.Process(target=move_robot,
                                          args=(left_message_queue,
-                                               LEFT_ARM_IP),
+                                               LEFT_ARM_IP,
+                                               exit_event),
                                          name="move_robot_left_proc")
         # Server to receive state from Oculus
-        start_server_process = mp.Process(target=start_server,
-                                          args=(left_message_queue,
-                                                right_message_queue,),
-                                          name="server_proc")
+        start_subscriber_process = mp.Process(target=start_subscriber,
+                                              args=(left_message_queue,
+                                                    right_message_queue,
+                                                    exit_event),
+                                              name="subscriber_proc")
 
         right_moving_process.start()
         left_moving_process.start()
-        start_server_process.start()
+        start_subscriber_process.start()
+
+        while True:
+            if exit_event.is_set():
+                break
 
     # keyboard interrupt exception;
     # TODO: Use a button on the controller to exit; Maybe some lock shared across processes?
     except KeyboardInterrupt:
         right_moving_process.join()
         left_moving_process.join()
-        start_server_process.join()
+        start_subscriber_process.join()
 
         print("Exiting...")
         exit()
@@ -46,4 +54,16 @@ if __name__ == "__main__":
     except Exception as e:
         # TODO: Bubble up exitcode/exceptions from move_robot, start_server
         print("Error: {}".format(e))
+        exit()
+
+    finally:
+        # Cleanup
+
+        # TODO: Move to a function. if process.is_alive() then process.terminate()
+
+        right_moving_process.join()
+        left_moving_process.join()
+        start_subscriber_process.join()
+
+        print("Exiting...")
         exit()

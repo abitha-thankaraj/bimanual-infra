@@ -1,5 +1,5 @@
 import zmq
-import numpy as np
+import time
 import multiprocessing as mp
 from numpy.linalg import pinv
 
@@ -8,7 +8,7 @@ from bimanual.servers.controller_state import parse_controller_state
 from bimanual.hardware.robot import CartesianMoveMessage, GripperMoveMessage
 
 
-def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
+def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp.Event = None):
     """ Opens zmq socket to receive controller state messages from the oculus. 
         Controller states are parsed and sent as affines to shared message queus to be accessed by each xarm.
     """
@@ -16,27 +16,53 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
     # Set up the ZeroMQ context
     context = zmq.Context()
 
-    # Create a REP (reply) socket
-    socket = context.socket(zmq.REP)
+    # Create a subscriber socket
+    socket = context.socket(zmq.SUB)
 
     # Bind the socket to a specific address and port
-    socket.bind("tcp://*:5555")
+    # IP address of oculus on NYU network.
+    # TODO: Move to configs
+    socket.connect("tcp://10.19.238.56:5555")
+
+    # Subscribe to messages on topic "oculus_controller"
+    # TODO: Move to configs
+    socket.subscribe(b"oculus_controller")
 
     start_teleop = False
 
     # Calibration frames
     init_left_affine, init_right_affine = None, None
 
-    print("Starting server...")
+    print("Starting Subscriber...")
 
-    while True:
-        # Wait for a message from the client
+    last_ts = time.time()
+
+    while exit_event is None or not exit_event.is_set():
+        # Subscribe to topic
         message = socket.recv_string()
+        # TODO: Figure out why you get topic name and then message; may have something to do with zmq reading.
+        if message == "oculus_controller":
+            continue
+        print("Received msg")
 
-        # REP socket must send a reply back.
-        socket.send_string("OK: Received message")
+        # TODO: Rate limit this to 100 Hz; If deltas are too small it's harder to execute.
+
+        if time.time() - last_ts < 0.01:
+            continue
+
+        last_ts = time.time()
 
         controller_state = parse_controller_state(message)
+
+        # Pressing B and Y exits the program.
+        if controller_state.left_y and controller_state.right_b:
+            print("Exiting...")
+            # Cleanup zmq context
+            socket.close()
+            context.term()
+            # Set the exit event to signal both arms to stop.
+            exit_event.set()
+            return
 
         # Pressing A button calibrates first frame and starts teleop
         if controller_state.right_a:
@@ -64,8 +90,10 @@ def start_server(left_queue: mp.Queue, right_queue: mp.Queue):
             relative_left_affine = pinv(H_R_V) @ H_VL_des @ H_R_V
 
             # Send relative affines to each arm.
-            right_queue.put(CartesianMoveMessage(affine=relative_right_affine, target=[]))
-            left_queue.put(CartesianMoveMessage(affine=relative_left_affine, target=[]))
+            right_queue.put(CartesianMoveMessage(
+                affine=relative_right_affine, target=[]))
+            left_queue.put(CartesianMoveMessage(
+                affine=relative_left_affine, target=[]))
 
         # Index trigger to close; hand trigger to open.
         if controller_state.left_index_trigger > 0.5:
