@@ -1,6 +1,5 @@
 import zmq
 import time
-import numpy as np
 import multiprocessing as mp
 from numpy.linalg import pinv
 
