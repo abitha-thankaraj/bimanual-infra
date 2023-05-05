@@ -33,13 +33,15 @@ if __name__ == "__main__":
                                                     exit_event),
                                               name="subscriber_proc")
 
+        # TODO: Add a process to record camera data
+
         right_moving_process.start()
         left_moving_process.start()
         start_subscriber_process.start()
 
         while True:
             if exit_event.is_set():
-                break
+                break  # Takes you to the finally block
 
     # keyboard interrupt exception;
     # TODO: Use a button on the controller to exit; Maybe some lock shared across processes?

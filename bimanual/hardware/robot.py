@@ -8,7 +8,7 @@ import multiprocessing as mp
 
 from xarm import XArmAPI
 
-from bimanual.servers.robot_state import RobotState
+from bimanual.servers.robot_state import RobotStateAction
 from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa
 from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_POSE_AA, ROBOT_SERVO_MODE_STEP_LIMITS
 
@@ -78,30 +78,49 @@ class Robot(XArmAPI):
         # Wait for mode switch to complete
         time.sleep(0.1)
 
-    def get_current_state(self) -> RobotState:
+    def get_current_state_action_tuple(self,
+                                       pose_aa: np.ndarray = None,
+                                       joint_angles: np.ndarray = None,
+                                       gripper_state: np.ndarray = None,
+                                       force_info: np.ndarray = None,
+                                       des_pose: np.ndarray = None,
+                                       controller_ts: float = None,
+                                       last_sent_ts: float = None) -> RobotStateAction:
         # TODO: Add check for error code in get commands.
-        return RobotState(
-            # Should you initialize a common timestamp for all logs? for each log, use the timestamp during execution.
-            current_timestamp=time.time(),
-            pose_aa=self.get_position_aa()[1],
-            joint_angles=self.get_servo_angle()[1],
-            gripper_state=self.get_gripper_position()[1],
-            force_info=None  # TODO: Bobby
+        # Refactor this to decouple state and action in the environment.
+        return RobotStateAction(
+            created_timestamp=time.time(),  # Time at which row was created.
+
+            # state information
+            pose_aa=self.get_position_aa()[1] if pose_aa is None else pose_aa,
+            joint_angles=self.get_servo_angle(
+            )[1] if joint_angles is None else joint_angles,
+            gripper_state=self.get_gripper_position(
+            )[1] if gripper_state is None else gripper_state,
+            force_info=force_info,  # TODO: Bobby
+
+            # Action information
+            action_des_pose_aa=des_pose,  # Commanded pose; after clipping
+            # Master clock; Sync both arms with this.
+            controller_ts=controller_ts,
+            # Time at which the previous command was sent to the robot.
+            last_sent_ts=last_sent_ts,
         )
 
 
 def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
 
     robot = Robot(ip, is_radian=True)
-
-    # Initialize timestamp; used to send messages to the robot at a fixed frequency.
-    last_sent_msg_ts = time.time()
     robot.reset()
 
     status, home_pose = robot.get_position_aa()
     assert status == 0, "Failed to get robot position"
 
     home_affine = robot_pose_aa_to_affine(home_pose)
+    env_state_action_df = robot.get_current_state_action_tuple().to_df()
+
+    # Initialize timestamp; used to send messages to the robot at a fixed frequency.
+    last_sent_msg_ts = time.time()
 
     while exit_event is None or not exit_event.is_set():
         if (time.time() - last_sent_msg_ts) > CONTROL_TIME_PERIOD:
@@ -119,7 +138,7 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
                     home_pose = robot.get_position_aa()[1]  # translation in mm
                     home_affine = robot_pose_aa_to_affine(
                         home_pose)  # translation in m
-                    print("Resetting : {}".format(home_pose))
+                    print("Pausing robot at : {}".format(home_pose))
                     continue
 
                 # If robot is in error state, clear it. Reset to home. Consume next message.
@@ -154,23 +173,33 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
                 des_rotation = target_pose[3:]
                 des_pose = des_translation + des_rotation
 
+                # Populate all records for state.
+                current_state_action_pair = robot.get_current_state_action_tuple(
+                    # just use time.time? why use the last sent msg ts? Will this help get an exact state
+                    ts=last_sent_msg_ts,
+                    pose_aa=current_pose,
+                    des_pose=des_pose,
+                    controller_ts=move_msg.controller_ts,
+                    last_sent_ts=last_sent_msg_ts  # t-1 actually;
+                )
+
+                env_state_action_df = pd.concat(
+                    [env_state_action_df, current_state_action_pair.to_df()])
+
                 # TODO: Get all the parameters from the message?
                 robot.set_servo_cartesian_aa(
                     des_pose, wait=False, relative=False, mvacc=200, speed=50)
-
-                # Populate all records for state.
-                RobotState(
-                    # Should this be before or after the robot moves?
-                    created_timestamp=last_sent_msg_ts,
-                    pose_aa=current_pose,
-                    joint_angles=None,
-                    gripper_state=None,
-                    force_info=None
-                )
 
                 last_sent_msg_ts = time.time()
 
             else:
                 time.sleep(0.001)
 
+    # Save the data to a file, when you exit the task.
+    env_state_action_df.to_csv(
+        "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.csv".format(ip), index=False)
+
     return
+
+
+
