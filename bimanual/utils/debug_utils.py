@@ -19,11 +19,11 @@ class DebugTimer():
         # print(f"Time elapsed for {self.name}: {self.interval:.6f}s")
 
 
-def benchmark_cmd(n_trials: int, cmd: Callable[[], None], name: str) -> None:
+def benchmark_cmd(n_trials: int, cmd: Callable[[], None], kwargs: dict = dict(), name: str = None) -> None:
     intervals = []
     for _ in range(n_trials):
         with DebugTimer(name) as ds:
-            cmd()
+            cmd(**kwargs)
         intervals.append(ds.interval)
     print("Avg time taken for {} : {}".format(
         name, sum(intervals)/len(intervals)))

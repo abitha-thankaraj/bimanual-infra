@@ -92,15 +92,18 @@ class Robot(XArmAPI):
             created_timestamp=time.time(),  # Time at which row was created.
 
             # state information
-            pose_aa=self.get_position_aa()[1] if pose_aa is None else pose_aa,
-            joint_angles=self.get_servo_angle(
-            )[1] if joint_angles is None else joint_angles,
-            gripper_state=self.get_gripper_position(
-            )[1] if gripper_state is None else gripper_state,
-            force_info=force_info,  # TODO: Bobby
+            pose_aa=np.array(self.get_position_aa()[
+                             1]) if pose_aa is None else pose_aa,
+            joint_angles=np.array(self.get_servo_angle(
+            )[1]) if joint_angles is None else joint_angles,
+            gripper_state=None,  # TODO: Make binary flag. This is too slow.
+            # self.get_gripper_position(
+            # )[1] if gripper_state is None else gripper_state,
+            force_info=force_info,
 
             # Action information
-            action_des_pose_aa=des_pose,  # Commanded pose; after clipping
+            # Commanded pose; after clipping
+            action_des_pose_aa=np.array(des_pose),
             # Master clock; Sync both arms with this.
             controller_ts=controller_ts,
             # Time at which the previous command was sent to the robot.
@@ -173,7 +176,7 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
                 des_rotation = target_pose[3:]
                 des_pose = des_translation + des_rotation
 
-                # Populate all records for state.
+                # # Populate all records for state.
                 current_state_action_pair = robot.get_current_state_action_tuple(
                     # just use time.time? why use the last sent msg ts? Will this help get an exact state
                     ts=last_sent_msg_ts,
@@ -200,6 +203,3 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
         "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.csv".format(ip), index=False)
 
     return
-
-
-
