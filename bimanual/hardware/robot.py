@@ -10,7 +10,7 @@ from xarm import XArmAPI
 
 from bimanual.servers.robot_state import RobotStateAction
 from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa
-from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_POSE_AA, ROBOT_SERVO_MODE_STEP_LIMITS
+from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_JS, ROBOT_SERVO_MODE_STEP_LIMITS
 
 
 class RobotControlMode(Enum):
@@ -68,13 +68,15 @@ class Robot(XArmAPI):
     def reset(self):
         # Clean error
         self.clear()
-        self.set_mode_and_state(RobotControlMode.CARTESIAN_CONTROL, 0)
-        # Move to predefined home position using cartesian control
-        # TODO: Get joint states and set them. Deterministic.
-        status = self.set_position_aa(ROBOT_HOME_POSE_AA, wait=True)
-        assert status == 0, "Failed to set robot at home position"
+        # self.set_mode_and_state(RobotControlMode.CARTESIAN_CONTROL, 0)
+        # # Move to predefined home position using cartesian control
+        # # TODO: Get joint states and set them. Deterministic.
+        # status = self.set_position_aa(ROBOT_HOME_POSE_AA, wait=True)
+        # assert status == 0, "Failed to set robot at home position"
         # Set mode to servo control
         self.set_mode_and_state(RobotControlMode.SERVO_CONTROL, 0)
+        status = self.set_servo_angle_j(ROBOT_HOME_JS, wait=True, is_radian=True)
+        assert status == 0, "Failed to set robot at home joint position"
         # Wait for mode switch to complete
         time.sleep(0.1)
 
@@ -120,7 +122,7 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
     assert status == 0, "Failed to get robot position"
 
     home_affine = robot_pose_aa_to_affine(home_pose)
-    env_state_action_df = robot.get_current_state_action_tuple().to_df()
+    # env_state_action_df = robot.get_current_state_action_tuple().to_df()
 
     # Initialize timestamp; used to send messages to the robot at a fixed frequency.
     last_sent_msg_ts = time.time()
@@ -176,18 +178,18 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
                 des_rotation = target_pose[3:]
                 des_pose = des_translation + des_rotation
 
-                # # Populate all records for state.
-                current_state_action_pair = robot.get_current_state_action_tuple(
-                    # just use time.time? why use the last sent msg ts? Will this help get an exact state
-                    ts=last_sent_msg_ts,
-                    pose_aa=current_pose,
-                    des_pose=des_pose,
-                    controller_ts=move_msg.controller_ts,
-                    last_sent_ts=last_sent_msg_ts  # t-1 actually;
-                )
+                # # # Populate all records for state.
+                # current_state_action_pair = robot.get_current_state_action_tuple(
+                #     # just use time.time? why use the last sent msg ts? Will this help get an exact state
+                #     # ts=last_sent_msg_ts,
+                #     pose_aa=current_pose,
+                #     des_pose=des_pose,
+                #     controller_ts=move_msg.created_timestamp,
+                #     last_sent_ts=last_sent_msg_ts  # t-1 actually;
+                # )
 
-                env_state_action_df = pd.concat(
-                    [env_state_action_df, current_state_action_pair.to_df()])
+                # env_state_action_df = pd.concat(
+                #     [env_state_action_df, current_state_action_pair.to_df()])
 
                 # TODO: Get all the parameters from the message?
                 robot.set_servo_cartesian_aa(
@@ -199,7 +201,7 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
                 time.sleep(0.001)
 
     # Save the data to a file, when you exit the task.
-    env_state_action_df.to_csv(
-        "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.csv".format(ip), index=False)
+    # env_state_action_df.to_csv(
+    #     "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.csv".format(ip), index=False)
 
     return

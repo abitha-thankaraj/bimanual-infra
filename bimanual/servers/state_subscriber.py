@@ -3,7 +3,7 @@ import time
 import multiprocessing as mp
 from numpy.linalg import pinv
 
-from bimanual.servers import H_R_V
+from bimanual.servers import H_R_V, CONTROL_TIME_PERIOD
 from bimanual.servers.controller_state import parse_controller_state
 from bimanual.hardware.robot import CartesianMoveMessage, GripperMoveMessage
 
@@ -47,7 +47,7 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp
 
         # TODO: Rate limit this to 100 Hz; If deltas are too small it's harder to execute.
 
-        if time.time() - last_ts < 0.01:
+        if time.time() - last_ts < CONTROL_TIME_PERIOD:
             continue
 
         last_ts = time.time()
@@ -66,7 +66,7 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp
 
         # Pressing A button calibrates first frame and starts teleop
         if controller_state.right_a:
-
+            print('Starting teleop')
             start_teleop = True
             init_left_affine, init_right_affine = controller_state.left_affine, controller_state.right_affine
 
