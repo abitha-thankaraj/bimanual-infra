@@ -107,6 +107,7 @@ class Robot(XArmAPI):
         time.sleep(0.1)
 
     def get_current_state_action_tuple(self,
+                                       ts: float = None,
                                        pose_aa: np.ndarray = None,
                                        joint_angles: np.ndarray = None,
                                        gripper_state: np.ndarray = None,
@@ -117,6 +118,7 @@ class Robot(XArmAPI):
         # TODO: Add check for error code in get commands.
         # Refactor this to decouple state and action in the environment.
         return RobotStateAction(
+
             created_timestamp=time.time(),  # Time at which row was created.
 
             # state information
@@ -153,10 +155,13 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
     assert status == 0, "Failed to get robot position"
 
     home_affine = robot_pose_aa_to_affine(home_pose)
-    # env_state_action_df = robot.get_current_state_action_tuple().to_df()
 
     # Initialize timestamp; used to send messages to the robot at a fixed frequency.
     last_sent_msg_ts = time.time()
+
+    # Initialize the environment state action tuple.
+    env_state_action_df = robot.get_current_state_action_tuple(
+        last_sent_ts=last_sent_msg_ts).to_df()
 
     while exit_event is None or not exit_event.is_set():
         if (time.time() - last_sent_msg_ts) > CONTROL_TIME_PERIOD:
@@ -211,18 +216,21 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
                 des_rotation = target_pose[3:]
                 des_pose = des_translation + des_rotation
 
+                ret_code, (joint_pos, joint_vels,
+                           joint_effort) = robot.get_joint_states()
                 # # # Populate all records for state.
-                # current_state_action_pair = robot.get_current_state_action_tuple(
-                #     # just use time.time? why use the last sent msg ts? Will this help get an exact state
-                #     # ts=last_sent_msg_ts,
-                #     pose_aa=current_pose,
-                #     des_pose=des_pose,
-                #     controller_ts=move_msg.created_timestamp,
-                #     last_sent_ts=last_sent_msg_ts  # t-1 actually;
-                # )
+                current_state_action_pair = robot.get_current_state_action_tuple(
+                    # just use time.time? why use the last sent msg ts? Will this help get an exact state
+                    ts=last_sent_msg_ts,
+                    pose_aa=current_pose,
+                    joint_angles=joint_pos,
+                    des_pose=des_pose,
+                    controller_ts=move_msg.created_timestamp,
+                    last_sent_ts=last_sent_msg_ts  # t-1 actually;
+                )
 
-                # env_state_action_df = pd.concat(
-                #     [env_state_action_df, current_state_action_pair.to_df()])
+                env_state_action_df = pd.concat(
+                    [env_state_action_df, current_state_action_pair.to_df()], ignore_index=True)
 
                 # TODO: Get all the parameters from the message?
                 robot.set_servo_cartesian_aa(
@@ -234,7 +242,9 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
                 time.sleep(0.001)
 
     # Save the data to a file, when you exit the task.
-    # env_state_action_df.to_csv(
-    #     "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.csv".format(ip), index=False)
+    env_state_action_df.to_csv(
+        "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.csv".format(ip), index=False)
+    env_state_action_df.to_hdf(
+        "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.h5".format(ip), key="df", mode="w")
 
     return

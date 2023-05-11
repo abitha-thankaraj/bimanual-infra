@@ -10,6 +10,8 @@ class State:
     def to_df(self) -> pd.DataFrame:
         """ Convert an instance of ControllerState to a pandas DataFrame. """
         for key, value in self.__dict__.items():
+            if isinstance(value, list):
+                value = np.array(value)
             # numpy arrays with varying length need to be converted to dtype object for pandas
             if isinstance(value, np.ndarray):
                 self.__dict__[key] = pd.Series([value], dtype=object)
