@@ -145,11 +145,11 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
 
     robot = Robot(ip, is_radian=True)
     robot.reset()
-    if ip == "192.168.86.230":
-        robot.enable_impedance_mode()
-        print("Enabled impedance mode. Robot force {}".format(
-            robot.get_ft_sensor_data()))
-        robot.set_mode_and_state(RobotControlMode.SERVO_CONTROL, 0)
+    # if ip == "192.168.86.230":
+    #     robot.enable_impedance_mode()
+    #     print("Enabled impedance mode. Robot force {}".format(
+    #         robot.get_ft_sensor_data()))
+    #     robot.set_mode_and_state(RobotControlMode.SERVO_CONTROL, 0)
 
     status, home_pose = robot.get_position_aa()
     assert status == 0, "Failed to get robot position"

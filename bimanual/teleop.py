@@ -22,11 +22,11 @@ if __name__ == "__main__":
                                                 exit_event),
                                           name="move_robot_right_proc")
         # # Left arm
-        # left_moving_process = mp.Process(target=move_robot,
-        #                                  args=(left_message_queue,
-        #                                        LEFT_ARM_IP,
-        #                                        exit_event),
-        #                                  name="move_robot_left_proc")
+        left_moving_process = mp.Process(target=move_robot,
+                                         args=(left_message_queue,
+                                               LEFT_ARM_IP,
+                                               exit_event),
+                                         name="move_robot_left_proc")
         # Server to receive state from Oculus
         start_subscriber_process = mp.Process(target=start_subscriber,
                                               args=(left_message_queue,
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         # TODO: Add a process to record camera data
 
         processes = [right_moving_process,
-                     #  left_moving_process,
+                     left_moving_process,
                      start_subscriber_process]
 
         for process in processes:

@@ -45,11 +45,6 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp
             continue
         # print("Received msg")
 
-        # TODO: Rate limit this to 100 Hz; If deltas are too small it's harder to execute.
-
-        if time.time() - last_ts < CONTROL_TIME_PERIOD:
-            continue
-
         last_ts = time.time()
 
         controller_state = parse_controller_state(message)

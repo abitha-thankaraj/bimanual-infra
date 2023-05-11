@@ -13,7 +13,7 @@ H_R_V = np.array(
 # Robot workspace position limits.
 x_min, x_max = 206, 506
 y_min, y_max = -200, 200
-z_min, z_max = 120, 550
+z_min, z_max = 232, 550
 
 ROBOT_WORKSPACE = np.array([[x_min, y_min, z_min], [x_max, y_max, z_max]])
 
