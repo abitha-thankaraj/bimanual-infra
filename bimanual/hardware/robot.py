@@ -60,6 +60,38 @@ class Robot(XArmAPI):
         self.motion_enable(enable=False)
         self.motion_enable(enable=True)
 
+    def enable_impedance_mode(self):
+        # set tool impedance parameters:
+        # x/y/z linear stiffness coefficient, range: 0 ~ 2000 (N/m)
+        K_pos = 300
+        # Rx/Ry/Rz rotational stiffness coefficient, range: 0 ~ 20 (Nm/rad)
+        K_ori = 4
+
+        # Attention: for M and J, smaller value means less effort to drive the arm, but may also be less stable, please be careful.
+        M = float(0.06)  # x/y/z equivalent mass; range: 0.02 ~ 1 kg
+        # Rx/Ry/Rz equivalent moment of inertia, range: 1e-4 ~ 0.01 (Kg*m^2)
+        J = M * 0.01
+
+        c_axis = [1, 1, 1, 1, 1, 1]  # set z axis as compliant axis
+        ref_frame = 0         # 0 : base , 1 : tool
+
+        self.set_impedance_mbk([M, M, M, J, J, J], [K_pos, K_pos, K_pos, K_ori, K_ori, K_ori],
+                               [0]*6)  # B(damping) is reserved, give zeros
+        self.set_impedance_config(ref_frame, c_axis)
+
+        # enable ft sensor communication
+        self.ft_sensor_enable(1)
+        # will overwrite previous sensor zero and payload configuration
+        # remove this if zero_offset and payload already identified & compensated!
+        self.ft_sensor_set_zero()
+        # wait for writing zero operation to take effect, do not remove
+        time.sleep(0.2)
+
+        # move robot in impedance control application
+        self.ft_sensor_app_set(1)
+        # will start after set_state(0)
+        self.set_state(0)
+
     def set_mode_and_state(self, mode: RobotControlMode, state: int = 0):
         self.set_mode(mode.value)
         self.set_state(state)
@@ -68,16 +100,10 @@ class Robot(XArmAPI):
     def reset(self):
         # Clean error
         self.clear()
-        # self.set_mode_and_state(RobotControlMode.CARTESIAN_CONTROL, 0)
-        # # Move to predefined home position using cartesian control
-        # # TODO: Get joint states and set them. Deterministic.
-        # status = self.set_position_aa(ROBOT_HOME_POSE_AA, wait=True)
-        # assert status == 0, "Failed to set robot at home position"
-        # Set mode to servo control
         self.set_mode_and_state(RobotControlMode.SERVO_CONTROL, 0)
-        status = self.set_servo_angle_j(ROBOT_HOME_JS, wait=True, is_radian=True)
+        status = self.set_servo_angle_j(
+            ROBOT_HOME_JS, wait=True, is_radian=True)
         assert status == 0, "Failed to set robot at home joint position"
-        # Wait for mode switch to complete
         time.sleep(0.1)
 
     def get_current_state_action_tuple(self,
@@ -117,6 +143,11 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
 
     robot = Robot(ip, is_radian=True)
     robot.reset()
+    if ip == "192.168.86.230":
+        robot.enable_impedance_mode()
+        print("Enabled impedance mode. Robot force {}".format(
+            robot.get_ft_sensor_data()))
+        robot.set_mode_and_state(RobotControlMode.SERVO_CONTROL, 0)
 
     status, home_pose = robot.get_position_aa()
     assert status == 0, "Failed to get robot position"
@@ -155,6 +186,8 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
 
                 target_affine = home_affine @ move_msg.affine
                 print("Target affine: {}".format(target_affine))
+                print("Robot force data: {}".format(
+                    robot.get_ft_sensor_data()))
 
                 # If this target pose is too far from the current pose, move it to the closest point on the boundary.
                 target_pose = affine_to_robot_pose_aa(target_affine).tolist()

@@ -35,9 +35,10 @@ if __name__ == "__main__":
 
         # TODO: Add a process to record camera data
 
-        right_moving_process.start()
-        left_moving_process.start()
-        start_subscriber_process.start()
+        processes = [right_moving_process, left_moving_process, start_subscriber_process]
+
+        for process in processes:
+            process.start()
 
         while True:
             if exit_event.is_set():
@@ -46,12 +47,8 @@ if __name__ == "__main__":
     # keyboard interrupt exception;
     # TODO: Use a button on the controller to exit; Maybe some lock shared across processes?
     except KeyboardInterrupt:
-        right_moving_process.join()
-        left_moving_process.join()
-        start_subscriber_process.join()
 
         print("Exiting...")
-        exit()
 
     except Exception as e:
         # TODO: Bubble up exitcode/exceptions from move_robot, start_server
@@ -63,9 +60,10 @@ if __name__ == "__main__":
 
         # TODO: Move to a function. if process.is_alive() then process.terminate()
 
-        right_moving_process.join()
-        left_moving_process.join()
-        start_subscriber_process.join()
+        for process in processes:
+            if process.is_alive():
+                process.join()
+                process.terminate()
 
         print("Exiting...")
         exit()
