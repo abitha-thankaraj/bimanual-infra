@@ -1,9 +1,10 @@
 import zmq
 import time
+import numpy as np
 import multiprocessing as mp
 from numpy.linalg import pinv
 
-from bimanual.servers import H_R_V, CONTROL_TIME_PERIOD
+from bimanual.servers import H_R_V, H_R_V_star
 from bimanual.servers.controller_state import parse_controller_state
 from bimanual.hardware.robot import CartesianMoveMessage, GripperMoveMessage
 
@@ -82,9 +83,27 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp
             H_VL_des = pinv(init_left_affine) @ controller_state.left_affine
 
             # Align axes. Flip and rotate.
-            relative_right_affine = pinv(H_R_V) @ H_VR_des @ H_R_V
-            relative_left_affine = pinv(H_R_V) @ H_VL_des @ H_R_V
+            relative_right_affine_rot = (
+                pinv(H_R_V) @ H_VR_des @ H_R_V)[:3, :3]
+            relative_left_affine_rot = (pinv(H_R_V) @ H_VL_des @ H_R_V)[:3, :3]
 
+            relative_right_affine_trans = (
+                pinv(H_R_V_star) @ H_VR_des @ H_R_V_star)[:3, 3]
+            relative_left_affine_trans = (
+                pinv(H_R_V_star) @ H_VL_des @ H_R_V_star)[:3, 3]
+
+            # Combine rotation and translation.
+            relative_right_affine = np.block([
+                [relative_right_affine_rot,
+                    relative_right_affine_trans.reshape(3, 1)],
+                [0, 0, 0, 1]]
+            )
+
+            relative_left_affine = np.block(
+                [[relative_left_affine_rot,
+                    relative_left_affine_trans.reshape(3, 1)],
+                 [0, 0, 0, 1]]
+            )
             # Send relative affines to each arm.
             right_queue.put(CartesianMoveMessage(
                 affine=relative_right_affine, target=[]))

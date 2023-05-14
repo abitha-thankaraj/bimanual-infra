@@ -9,7 +9,7 @@ import multiprocessing as mp
 from xarm import XArmAPI
 
 from bimanual.servers.robot_state import RobotStateAction
-from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa
+from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa, affine_to_R_t
 from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_JS, ROBOT_SERVO_MODE_STEP_LIMITS
 
 
@@ -189,7 +189,18 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
                     home_affine = robot_pose_aa_to_affine(home_pose)
                     continue
 
-                target_affine = home_affine @ move_msg.affine
+                # target_affine = home_affine @ move_msg.affine
+
+                
+                home_translation = home_affine[:3, 3]
+                target_translation = home_affine[:3,3] + move_msg.affine[:3, 3]
+
+                home_rotation = home_affine[:3, :3]
+                target_rotation = home_rotation @ move_msg.affine[:3, :3]
+
+                target_affine = np.block(
+                    [[target_rotation, target_translation.reshape(-1, 1)], [0, 0, 0, 1]])
+
                 print("Target affine: {}".format(target_affine))
                 print("Robot force data: {}".format(
                     robot.get_ft_sensor_data()))

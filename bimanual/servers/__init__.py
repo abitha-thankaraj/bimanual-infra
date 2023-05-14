@@ -9,6 +9,12 @@ H_R_V = np.array(
      [0, 0, 0, 1]]
 )
 
+H_R_V_star = np.array(
+    [[0, 1, 0, 0],
+     [0, 0, 1, 0],
+     [-1, 0, 0, 0],
+     [0, 0, 0, 1]]
+)
 
 # Robot workspace position limits.
 x_min, x_max = 206, 506
