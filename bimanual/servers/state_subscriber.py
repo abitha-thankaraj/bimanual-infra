@@ -9,6 +9,30 @@ from bimanual.servers.controller_state import parse_controller_state
 from bimanual.hardware.robot import CartesianMoveMessage, GripperMoveMessage
 
 
+def get_relative_affine(init_affine, current_affine):
+    """ Returns the relative affine from the initial affine to the current affine.
+        Args:
+            init_affine: Initial affine
+            current_affine: Current affine
+        Returns:
+            Relative affine from init_affine to current_affine
+    """
+    # Relative affine from init_affine to current_affine in the VR controller frame.
+    H_V_des = pinv(init_affine) @ current_affine
+
+    # Transform to robot frame.
+    # Flips axes
+    relative_affine_rot = (pinv(H_R_V) @ H_V_des @ H_R_V)[:3, :3]
+    # Translations flips are mirrored.
+    relative_affine_trans = (pinv(H_R_V_star) @ H_V_des @ H_R_V_star)[:3, 3]
+
+    # Homogeneous coordinates
+    relative_affine = np.block(
+        [[relative_affine_rot, relative_affine_trans.reshape(3, 1)], [0, 0, 0, 1]])
+
+    return relative_affine
+
+
 def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp.Event = None):
     """ Opens zmq socket to receive controller state messages from the oculus. 
         Controller states are parsed and sent as affines to shared message queus to be accessed by each xarm.
@@ -79,31 +103,10 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp
 
             # LP edits
             # Relative rotation in controller from. From init_frame to current frame.
-            H_VR_des = pinv(init_right_affine) @ controller_state.right_affine
-            H_VL_des = pinv(init_left_affine) @ controller_state.left_affine
 
-            # Align axes. Flip and rotate.
-            relative_right_affine_rot = (
-                pinv(H_R_V) @ H_VR_des @ H_R_V)[:3, :3]
-            relative_left_affine_rot = (pinv(H_R_V) @ H_VL_des @ H_R_V)[:3, :3]
+            relative_right_affine = get_relative_affine(init_right_affine, controller_state.right_affine)
+            relative_left_affine = get_relative_affine(init_left_affine, controller_state.left_affine)
 
-            relative_right_affine_trans = (
-                pinv(H_R_V_star) @ H_VR_des @ H_R_V_star)[:3, 3]
-            relative_left_affine_trans = (
-                pinv(H_R_V_star) @ H_VL_des @ H_R_V_star)[:3, 3]
-
-            # Combine rotation and translation.
-            relative_right_affine = np.block([
-                [relative_right_affine_rot,
-                    relative_right_affine_trans.reshape(3, 1)],
-                [0, 0, 0, 1]]
-            )
-
-            relative_left_affine = np.block(
-                [[relative_left_affine_rot,
-                    relative_left_affine_trans.reshape(3, 1)],
-                 [0, 0, 0, 1]]
-            )
             # Send relative affines to each arm.
             right_queue.put(CartesianMoveMessage(
                 affine=relative_right_affine, target=[]))
