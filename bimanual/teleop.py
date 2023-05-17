@@ -38,17 +38,20 @@ if __name__ == "__main__":
                                                     exit_event),
                                               name="subscriber_proc")
 
+        # TODO: Add a process to record camera data
+
         # start_camera_process = mp.Process(target=start_camera_recording,  # TODO parameterize with camera ID
         #                                   args=(exit_event,
         #                                         traj_id),
         #                                   name="camera_proc")
 
-        # TODO: Add a process to record camera data
 
         processes = [
             right_moving_process,
             left_moving_process,
-            start_subscriber_process]
+            start_subscriber_process
+            # start_camera_process
+            ]
 
         for process in processes:
             process.start()
@@ -56,7 +59,8 @@ if __name__ == "__main__":
         while True:
             if exit_event.is_set():
                 # Sleep until files is saved.
-                time.sleep(5)
+                # TODO Use some lock to signal that the files are saved. Counting semaphore?
+                time.sleep(25)
                 break  # Takes you to the finally block
 
     # keyboard interrupt exception;
