@@ -48,3 +48,8 @@ LEFT_ARM_IP = "192.168.86.216"
 
 GRIPPER_OPEN = 600
 GRIPPER_CLOSE = 0
+
+
+# Save dirs
+
+DATA_DIR = "/home/robotlab/projects/bimanual-infra/data"

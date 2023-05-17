@@ -10,7 +10,7 @@ from xarm import XArmAPI
 
 from bimanual.servers.robot_state import RobotStateAction
 from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa, affine_to_R_t
-from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_JS, ROBOT_SERVO_MODE_STEP_LIMITS
+from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_JS, ROBOT_SERVO_MODE_STEP_LIMITS, DATA_DIR
 
 
 class RobotControlMode(Enum):
@@ -253,10 +253,8 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: s
                 time.sleep(0.001)
 
     # Save the data to a file, when you exit the task.
-    home_dir_name = "/home/robotlab/projects/bimanual-infra/data"
-
     env_state_action_df.to_csv(
-        "{}/{}/env_state_action_df_{}.csv".format(home_dir_name, traj_id, ip), index=False)
+        "{}/{}/env_state_action_df_{}.csv".format(DATA_DIR, traj_id, ip), index=False)
     # env_state_action_df.to_hdf(
     #     "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.h5".format(ip), key="df", mode="w")
 
