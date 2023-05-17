@@ -9,6 +9,12 @@ H_R_V = np.array(
      [0, 0, 0, 1]]
 )
 
+H_R_V_star = np.array(
+    [[0, 1, 0, 0],
+     [0, 0, 1, 0],
+     [-1, 0, 0, 0],
+     [0, 0, 0, 1]]
+)
 
 # Robot workspace position limits.
 x_min, x_max = 206, 506
@@ -33,5 +39,17 @@ CONTROL_TIME_PERIOD = 1/CONTROL_FREQ
 
 
 # Teleop Constants
+
+VR_TCP_ADDRESS = "tcp://10.19.238.56:5555"
+VR_CONTROLLER_TOPIC = b"oculus_controller"
+
 RIGHT_ARM_IP = "192.168.86.230"
 LEFT_ARM_IP = "192.168.86.216"
+
+GRIPPER_OPEN = 600
+GRIPPER_CLOSE = 0
+
+
+# Save dirs
+
+DATA_DIR = "/home/robotlab/projects/bimanual-infra/data"

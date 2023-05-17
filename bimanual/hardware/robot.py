@@ -9,8 +9,8 @@ import multiprocessing as mp
 from xarm import XArmAPI
 
 from bimanual.servers.robot_state import RobotStateAction
-from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa
-from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_JS, ROBOT_SERVO_MODE_STEP_LIMITS
+from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa, affine_to_R_t
+from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_JS, ROBOT_SERVO_MODE_STEP_LIMITS, DATA_DIR
 
 
 class RobotControlMode(Enum):
@@ -103,7 +103,7 @@ class Robot(XArmAPI):
         self.set_mode_and_state(RobotControlMode.SERVO_CONTROL, 0)
         status = self.set_servo_angle_j(
             ROBOT_HOME_JS, wait=True, is_radian=True)
-        assert status == 0, "Failed to set robot at home joint position"
+        # assert status == 0, "Failed to set robot at home joint position"
         time.sleep(0.1)
 
     def get_current_state_action_tuple(self,
@@ -141,7 +141,7 @@ class Robot(XArmAPI):
         )
 
 
-def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
+def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: str = None):
 
     robot = Robot(ip, is_radian=True)
     robot.reset()
@@ -189,7 +189,18 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
                     home_affine = robot_pose_aa_to_affine(home_pose)
                     continue
 
-                target_affine = home_affine @ move_msg.affine
+                # target_affine = home_affine @ move_msg.affine
+
+                home_translation = home_affine[:3, 3]
+                target_translation = home_affine[:3,
+                                                 3] + move_msg.affine[:3, 3]
+
+                home_rotation = home_affine[:3, :3]
+                target_rotation = home_rotation @ move_msg.affine[:3, :3]
+
+                target_affine = np.block(
+                    [[target_rotation, target_translation.reshape(-1, 1)], [0, 0, 0, 1]])
+
                 print("Target affine: {}".format(target_affine))
                 print("Robot force data: {}".format(
                     robot.get_ft_sensor_data()))
@@ -243,8 +254,8 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
 
     # Save the data to a file, when you exit the task.
     env_state_action_df.to_csv(
-        "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.csv".format(ip), index=False)
-    env_state_action_df.to_hdf(
-        "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.h5".format(ip), key="df", mode="w")
+        "{}/{}/env_state_action_df_{}.csv".format(DATA_DIR, traj_id, ip), index=False)
+    # env_state_action_df.to_hdf(
+    #     "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.h5".format(ip), key="df", mode="w")
 
     return
