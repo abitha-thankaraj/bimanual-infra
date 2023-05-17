@@ -141,7 +141,7 @@ class Robot(XArmAPI):
         )
 
 
-def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
+def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: str = None):
 
     robot = Robot(ip, is_radian=True)
     robot.reset()
@@ -253,9 +253,11 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
                 time.sleep(0.001)
 
     # Save the data to a file, when you exit the task.
+    home_dir_name = "/home/robotlab/projects/bimanual-infra/data"
+
     env_state_action_df.to_csv(
-        "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.csv".format(ip), index=False)
-    env_state_action_df.to_hdf(
-        "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.h5".format(ip), key="df", mode="w")
+        "{}/{}/env_state_action_df_{}.csv".format(home_dir_name, traj_id, ip), index=False)
+    # env_state_action_df.to_hdf(
+    #     "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.h5".format(ip), key="df", mode="w")
 
     return
