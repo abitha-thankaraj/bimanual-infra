@@ -4,7 +4,7 @@ import numpy as np
 import multiprocessing as mp
 from numpy.linalg import pinv
 
-from bimanual.servers import H_R_V, H_R_V_star
+from bimanual.servers import H_R_V, H_R_V_star, GRIPPER_OPEN, GRIPPER_CLOSE
 from bimanual.servers.controller_state import parse_controller_state
 from bimanual.hardware.robot import CartesianMoveMessage, GripperMoveMessage
 
@@ -55,6 +55,8 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp
 
     start_teleop = False
 
+    start_teleop_left, start_teleop_right = False, False
+
     # Calibration frames
     init_left_affine, init_right_affine = None, None
 
@@ -85,43 +87,67 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp
 
             return
 
+        # Teleop start/stop - right arm
+
         # Pressing A button calibrates first frame and starts teleop
         if controller_state.right_a:
             print('Starting teleop')
-            start_teleop = True
-            init_left_affine, init_right_affine = controller_state.left_affine, controller_state.right_affine
+            start_teleop_right = True
+            init_right_affine = controller_state.right_affine
+            # start_teleop = True
+            # init_left_affine, init_right_affine = controller_state.left_affine, controller_state.right_affine
 
         # Pressing B button stops teleop. And resets calibration frames to None.
         if controller_state.right_b:
-            start_teleop = False
-            init_left_affine, init_right_affine = None, None
+            start_teleop_right = False
+            init_right_affine = None
+
+            # start_teleop = False
+            # init_left_affine, init_right_affine = None, None
             # Sentinal value to reset robot start pose to current pose.
             right_queue.put(CartesianMoveMessage(target=None))
+            # left_queue.put(CartesianMoveMessage(target=None))
+
+        # Teleop start/stop - left arm
+        if controller_state.left_x:
+            start_teleop_left = True
+            init_left_affine = controller_state.left_affine
+        if controller_state.left_y:
+            start_teleop_left = False
+            init_left_affine = None
             left_queue.put(CartesianMoveMessage(target=None))
 
-        if start_teleop:
+        if start_teleop_right:
 
             # LP edits
             # Relative rotation in controller from. From init_frame to current frame.
 
-            relative_right_affine = get_relative_affine(init_right_affine, controller_state.right_affine)
-            relative_left_affine = get_relative_affine(init_left_affine, controller_state.left_affine)
+            relative_right_affine = get_relative_affine(
+                init_right_affine, controller_state.right_affine)
+            # relative_left_affine = get_relative_affine(
+            #     init_left_affine, controller_state.left_affine)
 
             # Send relative affines to each arm.
             right_queue.put(CartesianMoveMessage(
                 affine=relative_right_affine, target=[]))
+            # left_queue.put(CartesianMoveMessage(
+            #     affine=relative_left_affine, target=[]))
+
+        if start_teleop_left:
+            relative_left_affine = get_relative_affine(
+                init_left_affine, controller_state.left_affine)
             left_queue.put(CartesianMoveMessage(
                 affine=relative_left_affine, target=[]))
 
         # Index trigger to close; hand trigger to open.
         if controller_state.left_index_trigger > 0.5:
-            left_queue.put(GripperMoveMessage(0., wait=False))
+            left_queue.put(GripperMoveMessage(GRIPPER_CLOSE, wait=False))
 
         elif controller_state.left_hand_trigger > 0.5:
-            left_queue.put(GripperMoveMessage(400, wait=False))
+            left_queue.put(GripperMoveMessage(GRIPPER_OPEN, wait=False))
 
         if controller_state.right_index_trigger > 0.5:
-            right_queue.put(GripperMoveMessage(0., wait=False))
+            right_queue.put(GripperMoveMessage(GRIPPER_CLOSE, wait=False))
 
         elif controller_state.right_hand_trigger > 0.5:
-            right_queue.put(GripperMoveMessage(400, wait=False))
+            right_queue.put(GripperMoveMessage(GRIPPER_OPEN, wait=False))

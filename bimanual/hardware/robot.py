@@ -103,7 +103,7 @@ class Robot(XArmAPI):
         self.set_mode_and_state(RobotControlMode.SERVO_CONTROL, 0)
         status = self.set_servo_angle_j(
             ROBOT_HOME_JS, wait=True, is_radian=True)
-        assert status == 0, "Failed to set robot at home joint position"
+        # assert status == 0, "Failed to set robot at home joint position"
         time.sleep(0.1)
 
     def get_current_state_action_tuple(self,
@@ -191,9 +191,9 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None):
 
                 # target_affine = home_affine @ move_msg.affine
 
-                
                 home_translation = home_affine[:3, 3]
-                target_translation = home_affine[:3,3] + move_msg.affine[:3, 3]
+                target_translation = home_affine[:3,
+                                                 3] + move_msg.affine[:3, 3]
 
                 home_rotation = home_affine[:3, :3]
                 target_rotation = home_rotation @ move_msg.affine[:3, :3]
