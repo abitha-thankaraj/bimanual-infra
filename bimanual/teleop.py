@@ -38,20 +38,17 @@ if __name__ == "__main__":
                                                     exit_event),
                                               name="subscriber_proc")
 
-        # TODO: Add a process to record camera data
-
         # start_camera_process = mp.Process(target=start_camera_recording,  # TODO parameterize with camera ID
         #                                   args=(exit_event,
         #                                         traj_id),
         #                                   name="camera_proc")
 
+        # TODO: Add a process to record camera data
 
         processes = [
             right_moving_process,
             left_moving_process,
-            start_subscriber_process
-            # start_camera_process
-            ]
+            start_subscriber_process]
 
         for process in processes:
             process.start()

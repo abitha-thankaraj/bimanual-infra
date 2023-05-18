@@ -4,4 +4,6 @@
 **/*.csv
 **/*.png
 
+**/.ipynb_checkpoints
+
 todo.md
