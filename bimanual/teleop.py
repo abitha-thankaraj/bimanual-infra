@@ -1,4 +1,5 @@
 import time
+import datetime
 import numpy as np
 import multiprocessing as mp
 
@@ -15,17 +16,20 @@ if __name__ == "__main__":
     exit_event = mp.Event()
 
     try:
+        traj_id = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         # Right arm
         right_moving_process = mp.Process(target=move_robot,
                                           args=(right_message_queue,
                                                 RIGHT_ARM_IP,
-                                                exit_event),
+                                                exit_event,
+                                                traj_id),
                                           name="move_robot_right_proc")
         # # Left arm
         left_moving_process = mp.Process(target=move_robot,
                                          args=(left_message_queue,
                                                LEFT_ARM_IP,
-                                               exit_event),
+                                               exit_event,
+                                               traj_id),
                                          name="move_robot_left_proc")
         # Server to receive state from Oculus
         start_subscriber_process = mp.Process(target=start_subscriber,
@@ -36,9 +40,18 @@ if __name__ == "__main__":
 
         # TODO: Add a process to record camera data
 
-        processes = [right_moving_process,
-                     left_moving_process,
-                     start_subscriber_process]
+        # start_camera_process = mp.Process(target=start_camera_recording,  # TODO parameterize with camera ID
+        #                                   args=(exit_event,
+        #                                         traj_id),
+        #                                   name="camera_proc")
+
+
+        processes = [
+            right_moving_process,
+            left_moving_process,
+            start_subscriber_process
+            # start_camera_process
+            ]
 
         for process in processes:
             process.start()
@@ -46,7 +59,8 @@ if __name__ == "__main__":
         while True:
             if exit_event.is_set():
                 # Sleep until files is saved.
-                time.sleep(5)
+                # TODO Use some lock to signal that the files are saved. Counting semaphore?
+                time.sleep(25)
                 break  # Takes you to the finally block
 
     # keyboard interrupt exception;
