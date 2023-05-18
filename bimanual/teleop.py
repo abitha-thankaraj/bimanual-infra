@@ -43,28 +43,33 @@ if __name__ == "__main__":
 
         cam = Camera(connect=True)  # TODO move into init of start rec
         time.sleep(3)
-        start_camera_process = mp.Process(target=start_video_recording,  # TODO parameterize with camera ID
-                                          args=(cam,
-                                                exit_event,
-                                                traj_id),
-                                          name="camera_proc")
+        # start_camera_process = mp.Process(target=start_video_recording,  # TODO parameterize with camera ID
+        #                                   args=(cam,
+        #                                         exit_event,
+        #                                         traj_id),
+        #                                   name="camera_proc")
 
         # TODO: Add a process to record camera data
 
         processes = [
+
             right_moving_process,
             left_moving_process,
-            start_subscriber_process,
-            start_camera_process]
+            start_subscriber_process
+            # ,
+            # start_camera_process
+        ]
 
         for process in processes:
             process.start()
 
         while True:
+            # The right way to do it is using sockets and IPC. This will not scale to multiple cameras.
+            # pyrealsense implements multithreading. SOme form of incompatibility when waiting for frames.
             if exit_event.is_set():
                 # Sleep until files is saved.
                 # TODO Use some lock to signal that the files are saved. Counting semaphore?
-                time.sleep(25)
+                # time.sleep(25)
                 break  # Takes you to the finally block
 
     # keyboard interrupt exception;
