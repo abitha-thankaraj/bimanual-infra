@@ -1,3 +1,4 @@
+import os
 import time
 import datetime
 import numpy as np
@@ -5,7 +6,7 @@ import multiprocessing as mp
 
 from bimanual.hardware.robot import move_robot
 from bimanual.servers.state_subscriber import start_subscriber
-from bimanual.servers import RIGHT_ARM_IP, LEFT_ARM_IP
+from bimanual.servers import RIGHT_ARM_IP, LEFT_ARM_IP, DATA_DIR
 
 
 if __name__ == "__main__":
@@ -17,6 +18,7 @@ if __name__ == "__main__":
 
     try:
         traj_id = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        os.makedirs(os.path.join(DATA_DIR, traj_id), exist_ok=True)
         # Right arm
         right_moving_process = mp.Process(target=move_robot,
                                           args=(right_message_queue,

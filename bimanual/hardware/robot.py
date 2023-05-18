@@ -253,8 +253,9 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: s
                 time.sleep(0.001)
 
     # Save the data to a file, when you exit the task.
-    env_state_action_df.to_csv(
-        "{}/{}/env_state_action_df_{}.csv".format(DATA_DIR, traj_id, ip), index=False)
+    fname = "{}/{}/env_state_action_df_{}.csv".format(DATA_DIR, traj_id, ip)
+    env_state_action_df.to_csv(fname, index=False)
+    print("Saved robot data to file: {}".format(fname))
     # env_state_action_df.to_hdf(
     #     "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.h5".format(ip), key="df", mode="w")
 
