@@ -66,6 +66,7 @@ if __name__ == "__main__":
         while True:
             # The right way to do it is using sockets and IPC. This will not scale to multiple cameras.
             # pyrealsense implements multithreading. SOme form of incompatibility when waiting for frames.
+            start_video_recording(cam, exit_event, traj_id)
             if exit_event.is_set():
                 # Sleep until files is saved.
                 # TODO Use some lock to signal that the files are saved. Counting semaphore?
