@@ -202,8 +202,8 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: s
                     [[target_rotation, target_translation.reshape(-1, 1)], [0, 0, 0, 1]])
 
                 print("Target affine: {}".format(target_affine))
-                print("Robot force data: {}".format(
-                    robot.get_ft_sensor_data()))
+                # print("Robot force data: {}".format(
+                #     robot.get_ft_sensor_data()))
 
                 # If this target pose is too far from the current pose, move it to the closest point on the boundary.
                 target_pose = affine_to_robot_pose_aa(target_affine).tolist()

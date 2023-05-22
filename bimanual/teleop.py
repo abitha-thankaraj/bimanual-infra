@@ -5,6 +5,7 @@ import numpy as np
 import multiprocessing as mp
 
 from bimanual.hardware.robot import move_robot
+from bimanual.hardware.camera import start_video_recording, Camera
 from bimanual.servers.state_subscriber import start_subscriber
 from bimanual.servers import RIGHT_ARM_IP, LEFT_ARM_IP, DATA_DIR
 
@@ -40,26 +41,36 @@ if __name__ == "__main__":
                                                     exit_event),
                                               name="subscriber_proc")
 
-        # start_camera_process = mp.Process(target=start_camera_recording,  # TODO parameterize with camera ID
-        #                                   args=(exit_event,
+        cam = Camera(connect=True)  # TODO move into init of start rec
+        time.sleep(3)
+        # start_camera_process = mp.Process(target=start_video_recording,  # TODO parameterize with camera ID
+        #                                   args=(cam,
+        #                                         exit_event,
         #                                         traj_id),
         #                                   name="camera_proc")
 
         # TODO: Add a process to record camera data
 
         processes = [
+
             right_moving_process,
             left_moving_process,
-            start_subscriber_process]
+            start_subscriber_process
+            # ,
+            # start_camera_process
+        ]
 
         for process in processes:
             process.start()
 
         while True:
+            # The right way to do it is using sockets and IPC. This will not scale to multiple cameras.
+            # pyrealsense implements multithreading. SOme form of incompatibility when waiting for frames.
+            start_video_recording(cam, exit_event, traj_id)
             if exit_event.is_set():
                 # Sleep until files is saved.
                 # TODO Use some lock to signal that the files are saved. Counting semaphore?
-                time.sleep(25)
+                # time.sleep(25)
                 break  # Takes you to the finally block
 
     # keyboard interrupt exception;
