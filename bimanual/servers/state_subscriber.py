@@ -64,7 +64,7 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp
         # TODO: Figure out why you get topic name and then message; may have something to do with zmq reading.
         if message == "oculus_controller":
             continue
-        # print("Received msg") #Debug message TODO: Implement logging with different levels
+        # print("Received msg") # Debug message TODO: Implement logging with different levels
 
         controller_state = parse_controller_state(message)
 
@@ -82,7 +82,7 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp
 
         # Pressing A button calibrates first frame and starts teleop for right robot.
         if controller_state.right_a:
-            print('Starting teleop')
+            # print('Starting teleop') # Debug message
             start_teleop_right = True
             init_right_affine = controller_state.right_affine
 

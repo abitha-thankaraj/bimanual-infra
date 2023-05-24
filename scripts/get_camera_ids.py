@@ -1,4 +1,5 @@
 import pyrealsense2 as rs
+# from logging import logger
 
 # Create a context object for managing connected devices
 ctx = rs.context()
@@ -10,6 +11,7 @@ devices = ctx.query_devices()
 for device in devices:
     print("Device Serial Number:", device.get_info(rs.camera_info.serial_number))
 
+    # logger.log("Hello")
 # # Select a specific camera by serial number
 # selected_serial_number = "<serial_number_of_desired_camera>"
 # selected_device = None

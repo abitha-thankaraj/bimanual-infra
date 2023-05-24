@@ -1,7 +1,10 @@
 import numpy as np
 
 # Robot constants
+
 # Robot to controller rotation.
+
+# we use this for rotation only. We dont want to mirror the rotations?
 H_R_V = np.array(
     [[0, -1, 0, 0],
      [0, 0, -1, 0],
@@ -9,6 +12,7 @@ H_R_V = np.array(
      [0, 0, 0, 1]]
 )
 
+# We use this for translation only
 H_R_V_star = np.array(
     [[0, 1, 0, 0],
      [0, 0, 1, 0],

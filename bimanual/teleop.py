@@ -59,7 +59,6 @@ if __name__ == "__main__":
         for process in processes:
             process.start()
 
-
         while True:
             # Keep main thread running until exit event is set by the subscriber.
             if exit_event.is_set():
