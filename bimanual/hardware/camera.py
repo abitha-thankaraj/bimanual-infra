@@ -3,6 +3,7 @@ import pyrealsense2 as rs
 import multiprocessing as mp
 from bimanual.servers import DATA_DIR
 
+
 class RealSenseCameraProcess(mp.Process):
     def __init__(self, serial_number, output_file, exit_event: mp.Event):
         super(RealSenseCameraProcess, self).__init__()
@@ -26,6 +27,8 @@ class RealSenseCameraProcess(mp.Process):
 
         # Start the pipeline
         self.pipeline.start(config)
+
+        # First few frames are dark/blurry.
         for _ in range(100):
             self.pipeline.wait_for_frames()
 
@@ -59,7 +62,7 @@ class RealSenseCameraProcess(mp.Process):
                 # Get aligned color and depth frames
                 aligned_color_frame = aligned_frames.get_color_frame()
 
-                #TODO: Record depth frames if needed.
+                # TODO: Record depth frames if needed.
 
                 # Perform further processing or analysis on the aligned frames
                 if aligned_color_frame:
@@ -79,5 +82,3 @@ class RealSenseCameraProcess(mp.Process):
         super(RealSenseCameraProcess, self).terminate()
         if self.ffmpeg_process:
             self.ffmpeg_process.terminate()
-
-

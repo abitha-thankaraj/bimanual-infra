@@ -1,4 +1,5 @@
 import os
+import time
 import datetime
 import numpy as np
 import multiprocessing as mp
@@ -62,6 +63,9 @@ if __name__ == "__main__":
         while True:
             # Keep main thread running until exit event is set by the subscriber.
             if exit_event.is_set():
+                time.sleep(10) 
+                # Wait until all the writes are complete. 
+                # Correct way to do this -> Use counting lock for all camera procesess to complete writing.
                 break  # Takes you to the finally block
 
     except Exception as e:
