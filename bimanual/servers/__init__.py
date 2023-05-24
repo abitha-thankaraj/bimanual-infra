@@ -53,3 +53,6 @@ GRIPPER_CLOSE = 0
 # Save dirs
 
 DATA_DIR = "/home/robotlab/projects/bimanual-infra/data"
+
+# Camera constants
+CAMERA_IDS = ["023322062082", "239122072217"]

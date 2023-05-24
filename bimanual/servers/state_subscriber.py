@@ -64,7 +64,7 @@ def start_subscriber(left_queue: mp.Queue, right_queue: mp.Queue, exit_event: mp
         # TODO: Figure out why you get topic name and then message; may have something to do with zmq reading.
         if message == "oculus_controller":
             continue
-        # print("Received msg")
+        # print("Received msg") #Debug message TODO: Implement logging with different levels
 
         controller_state = parse_controller_state(message)
 
