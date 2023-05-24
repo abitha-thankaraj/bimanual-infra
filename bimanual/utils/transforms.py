@@ -31,9 +31,3 @@ def affine_to_robot_pose_aa(affine: np.ndarray) -> np.ndarray:
     translation = affine[:3, 3] * SCALE_FACTOR
     rotation = R.from_matrix(affine[:3, :3]).as_rotvec()
     return np.concatenate([translation, rotation])
-
-
-def affine_to_R_t(affine):
-    """ Returns the rotation matrix and translation vector from an affine matrix.
-    """
-    return {'Rotation': affine[:3, :3], 'Translation': affine[:3, 3].T}

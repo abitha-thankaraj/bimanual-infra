@@ -9,7 +9,7 @@ import multiprocessing as mp
 from xarm import XArmAPI
 
 from bimanual.servers.robot_state import RobotStateAction
-from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa, affine_to_R_t
+from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa
 from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_JS, ROBOT_SERVO_MODE_STEP_LIMITS, DATA_DIR
 
 
