@@ -4,6 +4,7 @@ import pandas as pd
 from enum import Enum
 import pybullet
 import pybullet_data
+import zmq
 
 from typing import List
 import multiprocessing as mp
@@ -12,7 +13,7 @@ from xarm import XArmAPI
 
 from bimanual.servers.robot_state import RobotStateAction
 from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa
-from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_JS, ROBOT_SERVO_MODE_STEP_LIMITS, DATA_DIR
+from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_JS, ROBOT_SERVO_MODE_STEP_LIMITS, DATA_DIR, RIGHT_ARM_IP, LEFT_ARM_IP
 
 
 class RobotControlMode(Enum):
@@ -142,9 +143,15 @@ class Robot(XArmAPI):
             last_sent_ts=last_sent_ts,
         )
 
+# Define constants for communication
+SERVER_PORT = 5555
+CLIENT_PORT = 5555
 
 def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: str = None):
-
+    # Initialize ZeroMQ context and socket for client
+    context = zmq.Context()
+    socket = context.socket(zmq.REQ)
+    socket.connect(f"tcp://localhost:{CLIENT_PORT}")
     robot = Robot(ip, is_radian=True)
     robot.reset()
     # if ip == "192.168.86.230":
@@ -170,7 +177,7 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: s
             if not queue.empty():
                 move_msg = queue.get()
                 # TODO: Add df record
-
+                print(f'Got queue message here: {move_msg}')
                 if isinstance(move_msg, GripperMoveMessage):
                     robot.set_gripper_position(
                         move_msg.target, wait=move_msg.wait)
@@ -228,7 +235,14 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: s
 
                 des_rotation = target_pose[3:]
                 des_pose = des_translation + des_rotation
-
+                des_joint_angles = robot.get_inverse_kinematics(des_pose, input_is_radian=True, return_is_radian=True)[1]
+                # Send request to collision detection server
+                socket.send_multipart([ip.encode(), ','.join(str(item) for item in des_joint_angles).encode()])
+                response = socket.recv().decode()
+                print(response)
+                if response == "True":
+                    # Collision detected, skip and move to next command
+                    continue
                 ret_code, (joint_pos, joint_vels,
                            joint_effort) = robot.get_joint_states()
                 # # # Populate all records for state.
@@ -263,10 +277,7 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: s
 
     return
 
-def start_simulation(ip1: str, ip2: str, exit_event: mp.Event = None, traj_id: str = None):
-    robot1 = Robot(ip1, is_radian=True)
-    robot2 = Robot(ip2, is_radian=True)
-
+def start_simulation_with_zmq(exit_event: mp.Event = None):
     physicsClient = pybullet.connect(pybullet.GUI)
 
     # config GUI
@@ -301,18 +312,37 @@ def start_simulation(ip1: str, ip2: str, exit_event: mp.Event = None, traj_id: s
 
     pybullet.setRealTimeSimulation(1)
 
-    while exit_event is None or not exit_event.is_set():
-        contactPoints0 = pybullet.getContactPoints(robotID1, robotID2)
-        #contactPoints1 = pybullet.getContactPoints(robotID1, planeID)
-        #contactPoints2 = pybullet.getContactPoints(robotID2, planeID)
-        if len(contactPoints0) > 0:
-            print("Collision detected!")
-            break
-        joint_angles1 = robot1.get_servo_angle()[1]
-        joint_angles2 = robot2.get_servo_angle()[1]
-        for i in range(7):
-                pybullet.setJointMotorControl2(robotID1, i, pybullet.POSITION_CONTROL, targetPosition=-joint_angles1[i])
-                pybullet.setJointMotorControl2(robotID2, i, pybullet.POSITION_CONTROL, targetPosition=-joint_angles2[i])
+    # Initialize ZeroMQ context and socket for server
+    context = zmq.Context()
+    socket = context.socket(zmq.ROUTER)
+    socket.bind(f"tcp://*:{SERVER_PORT}")
 
+    # Initialize robot states
+    robot_states = {}
+    robot_states[LEFT_ARM_IP] = ROBOT_HOME_JS
+    robot_states[RIGHT_ARM_IP] = ROBOT_HOME_JS
+
+    while exit_event is None or not exit_event.is_set():
+        # Receive request from client, format is following:
+        #[b'\x00k\x8bEg', b'', b'192.168.86.230', b'0.07235799729824066,-0.9553599953651428,-0.04017600044608116,0.6615110039710999,-0.03283600136637688,1.6164660453796387,0.04765599966049194']
+        client_ip, _, robot_ip, des_angles = socket.recv_multipart() 
+        robot_ip = robot_ip.decode()
+        des_angles = [float(angle) for angle in des_angles.decode().split(',')]
+        # Set robot state and perform collision detection
+        robot_states[robot_ip] = des_angles
+        for i in range(7):
+                pybullet.setJointMotorControl2(robotID1, i, pybullet.POSITION_CONTROL, targetPosition=-robot_states[LEFT_ARM_IP][i])
+                pybullet.setJointMotorControl2(robotID2, i, pybullet.POSITION_CONTROL, targetPosition=-robot_states[RIGHT_ARM_IP][i])
+        contactPoints0 = pybullet.getContactPoints(robotID1, robotID2)
+
+        # Send response to client indicating collision status
+        socket.send_multipart([robot_ip.encode(), str(len(contactPoints0)>0).encode()]) #Here is probably sending wrong?
+        print("Sent response to client: {}".format(len(contactPoints0)>0)) #up to here works fine. Robot_states dict is updating two robot infos.
+
+    # Clean up ZeroMQ resources
+    socket.close()
+    context.term()
     # close server
     pybullet.disconnect()
+
+
