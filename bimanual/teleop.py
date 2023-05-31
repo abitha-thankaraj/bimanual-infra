@@ -43,6 +43,13 @@ if __name__ == "__main__":
                                                     right_message_queue,
                                                     exit_event),
                                               name="subscriber_proc")
+        # Simulation process to simulate the robot
+        start_simulation_process = mp.Process(target=start_simulation,
+                                              args=(LEFT_ARM_IP, 
+                                                    RIGHT_ARM_IP, 
+                                                    exit_event, 
+                                                    traj_id),
+                                              name="simulation_proc")
         # Camera processes for all realsense cameras attached.
         camera_processes = [RealSenseCameraProcess(serial_number="{}".format(camera_id), 
                                                    output_file= "video_{}_rgb.mp4".format(camera_id),
@@ -52,6 +59,7 @@ if __name__ == "__main__":
             right_moving_process, # Right robot arm
             left_moving_process, # Left robot arm
             start_subscriber_process # Subscriber
+            start_simulation_process # Simulation
         ]
         
         # Add camera processes to the list of processes
