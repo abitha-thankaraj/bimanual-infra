@@ -44,11 +44,8 @@ if __name__ == "__main__":
                                                     exit_event),
                                               name="subscriber_proc")
         # Simulation process to simulate the robot
-        start_simulation_process = mp.Process(target=start_simulation,
-                                              args=(LEFT_ARM_IP, 
-                                                    RIGHT_ARM_IP, 
-                                                    exit_event, 
-                                                    traj_id),
+        start_simulation_process = mp.Process(target=start_simulation_with_zmq,
+                                              args=(exit_event,),
                                               name="simulation_proc")
         # Camera processes for all realsense cameras attached.
         camera_processes = [RealSenseCameraProcess(serial_number="{}".format(camera_id), 
