@@ -2,6 +2,8 @@ import time
 import numpy as np
 import pandas as pd
 from enum import Enum
+import pybullet
+import pybullet_data
 
 from typing import List
 import multiprocessing as mp
@@ -260,3 +262,57 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: s
     #     "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.h5".format(ip), key="df", mode="w")
 
     return
+
+def start_simulation(ip1: str, ip2: str, exit_event: mp.Event = None, traj_id: str = None):
+    robot1 = Robot(ip1, is_radian=True)
+    robot2 = Robot(ip2, is_radian=True)
+
+    physicsClient = pybullet.connect(pybullet.GUI)
+
+    # config GUI
+    pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_RENDERING, 0)
+    pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_GUI, 0)
+    pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_TINY_RENDERER, 0)
+
+    # add the resource path
+    pybullet.setAdditionalSearchPath(pybullet_data.getDataPath())
+
+    # set gravity
+    pybullet.setGravity(0, 0, -9.8)
+
+    # load scene
+    planeID = pybullet.loadURDF('plane.urdf')
+
+    # load robot
+    robotStartPos = [0, 0, 0]
+    robotStartOrientation = pybullet.getQuaternionFromEuler([0, 0, 0])
+    robotSpacing = 0.5  # Distance between robots
+    robotID1 = pybullet.loadURDF("/hardware/model/robot.urdf", robotStartPos, robotStartOrientation)
+    robotID2 = pybullet.loadURDF("/hardware/model/robot.urdf", [robotStartPos[0] + robotSpacing, robotStartPos[1], robotStartPos[2]], robotStartOrientation)
+    #SET SIMULATION TO INITIAL POSITION
+    for i in range(7):
+                pybullet.setJointMotorControl2(robotID1, i, pybullet.POSITION_CONTROL, targetPosition=-ROBOT_HOME_JS[i])
+                pybullet.setJointMotorControl2(robotID2, i, pybullet.POSITION_CONTROL, targetPosition=-ROBOT_HOME_JS[i])
+    
+    
+    
+    # start rendering
+    pybullet.configureDebugVisualizer(pybullet.COV_ENABLE_RENDERING, 1)
+
+    pybullet.setRealTimeSimulation(1)
+
+    while exit_event is None or not exit_event.is_set():
+        contactPoints0 = pybullet.getContactPoints(robotID1, robotID2)
+        #contactPoints1 = pybullet.getContactPoints(robotID1, planeID)
+        #contactPoints2 = pybullet.getContactPoints(robotID2, planeID)
+        if len(contactPoints0) > 0:
+            print("Collision detected!")
+            break
+        joint_angles1 = robot1.get_servo_angle()[1]
+        joint_angles2 = robot2.get_servo_angle()[1]
+        for i in range(7):
+                pybullet.setJointMotorControl2(robotID1, i, pybullet.POSITION_CONTROL, targetPosition=-joint_angles1[i])
+                pybullet.setJointMotorControl2(robotID2, i, pybullet.POSITION_CONTROL, targetPosition=-joint_angles2[i])
+
+    # close server
+    pybullet.disconnect()
