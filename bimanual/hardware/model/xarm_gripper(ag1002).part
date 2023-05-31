@@ -1,0 +1,14 @@
+{
+    "configuration": "default",
+    "documentId": "c619d32439ced2fe9300d788",
+    "documentMicroversion": "bc5c89f17240d660decaab4a",
+    "documentVersion": "d243ccebf61a9a5a4474686e",
+    "elementId": "66146d5c9ec046b68f9b8c16",
+    "fullConfiguration": "default",
+    "id": "MdmMQqy8bCM5W8vnq",
+    "isStandardContent": false,
+    "name": "xArm Gripper(AG1002) <1>",
+    "partId": "KFHC",
+    "suppressed": false,
+    "type": "Part"
+}

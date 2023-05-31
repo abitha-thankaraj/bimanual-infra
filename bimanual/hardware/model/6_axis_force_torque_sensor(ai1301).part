@@ -1,0 +1,14 @@
+{
+    "configuration": "default",
+    "documentId": "111e3627cd052452a983f7d4",
+    "documentMicroversion": "32a31be49c038c17012a3a55",
+    "documentVersion": "07087fce37484906d190294d",
+    "elementId": "a4146a45a7956b43d808d6c5",
+    "fullConfiguration": "default",
+    "id": "MV4FJ3GK25d3/gxIk",
+    "isStandardContent": false,
+    "name": "6 Axis Force Torque Sensor(AI1301) <1>",
+    "partId": "JFP",
+    "suppressed": false,
+    "type": "Part"
+}
