@@ -31,7 +31,7 @@ def start_server(port):
         response = f"Hello, client {client_id.decode()}!"
         print(f"Received request: {request.decode()}")
         print(f"Sending response: {response}")
-        if k == 4:
+        if k == 10:
             exit()
         # Send the response back to the client
         socket.send_multipart([client_id, b'', response.encode()])
@@ -53,18 +53,16 @@ def start_client(client_id, port):
 
         # Wait for the reply from the server
         response = socket.recv()
-        print(f"Received response: {response.decode()}")
+        print(f"Received response: {response.decode()} on client {client_id}")
 
 
 if __name__ == "__main__":
     # Start the server as a background process
     import multiprocessing as mp
-    socket = server(SERVER_PORT)
-    server_process = mp.Process(target=start_server, args=(5556,))
-
+    server_process = mp.Process(target=start_server, args=(5557,))
     # Start the clients as background processes
 
-    client_processes = [mp.Process(target=start_client, args=("client_{}".format(i), 5556)) for i in range(2)]
+    client_processes = [mp.Process(target=start_client, args=("client_{}".format(i), 5557)) for i in range(2)]
 
     # Start the processes
     server_process.start()

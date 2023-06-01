@@ -11,6 +11,7 @@ import multiprocessing as mp
 from xarm import XArmAPI
 
 from bimanual.servers.robot_state import RobotStateAction
+from bimanual.servers.zmq_utils import server, client
 from bimanual.utils.transforms import robot_pose_aa_to_affine, affine_to_robot_pose_aa
 from bimanual.servers import CONTROL_TIME_PERIOD, ROBOT_WORKSPACE, ROBOT_HOME_JS, ROBOT_SERVO_MODE_STEP_LIMITS, DATA_DIR
 
@@ -62,6 +63,7 @@ class Robot(XArmAPI):
         self.motion_enable(enable=False)
         self.motion_enable(enable=True)
 
+    # TODO: Cleanup. Remove if unused.
     def enable_impedance_mode(self):
         # set tool impedance parameters:
         # x/y/z linear stiffness coefficient, range: 0 ~ 2000 (N/m)
@@ -146,7 +148,11 @@ class Robot(XArmAPI):
 def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: str = None):
 
     robot = Robot(ip, is_radian=True)
+    # Create a client to communicate with the collision detection server. Client id is the same as the robot ip.
+    collision_detection_client = client(ip, PORT)
+
     robot.reset()
+    # TODO : Remove this    
     # if ip == "192.168.86.230":
     #     robot.enable_impedance_mode()
     #     print("Enabled impedance mode. Robot force {}".format(
@@ -229,6 +235,19 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: s
                 des_rotation = target_pose[3:]
                 des_pose = des_translation + des_rotation
 
+                # TODO: Bobby: Add IK here.
+                des_joint_state = robot.inverse_kinematics(des_pose)
+
+                collision_detection_client.send(np.array(des_joint_state).tobytes())
+                response = collision_detection_client.recv().decode()
+
+                if response == "True":
+                    print("Collision detected!")
+                    continue
+
+
+
+
                 ret_code, (joint_pos, joint_vels,
                            joint_effort) = robot.get_joint_states()
                 # # # Populate all records for state.
@@ -258,15 +277,24 @@ def move_robot(queue: mp.Queue, ip: str, exit_event: mp.Event = None, traj_id: s
     fname = "{}/{}/env_state_action_df_{}.csv".format(DATA_DIR, traj_id, ip)
     env_state_action_df.to_csv(fname, index=False)
     print("Saved robot data to file: {}".format(fname))
+    
     # env_state_action_df.to_hdf(
     #     "/home/robotlab/projects/bimanual-infra/data/env_state_action_df_{}.h5".format(ip), key="df", mode="w")
 
     return
 
 def start_simulation(ip1: str, ip2: str, exit_event: mp.Event = None, traj_id: str = None):
-    robot1 = Robot(ip1, is_radian=True)
-    robot2 = Robot(ip2, is_radian=True)
+    # TODO: remove this
+    # robot1 = Robot(ip1, is_radian=True)
+    # robot2 = Robot(ip2, is_radian=True)
 
+    #TODO: Test this
+
+    left_js, right_js = ROBOT_HOME_JS, ROBOT_HOME_JS #TODO bobby : please verify logic
+
+    collision_detection_server = server(PORT)
+    
+    
     physicsClient = pybullet.connect(pybullet.GUI)
 
     # config GUI
@@ -302,17 +330,38 @@ def start_simulation(ip1: str, ip2: str, exit_event: mp.Event = None, traj_id: s
     pybullet.setRealTimeSimulation(1)
 
     while exit_event is None or not exit_event.is_set():
+
+        #robot_ip is the same as client id
+        robot_ip, _, request = collision_detection_server.recv_multipart()
+
+        if robot_ip == LEFt_IP:
+            left_js = np.frombuffer(request, dtype=np.float64)
+            left_js = left_js.reshape(7, 1)
+        elif robot_ip == RIGHT_IP:
+            right_js = np.frombuffer(request, dtype=np.float64)
+            right_js = right_js.reshape(7, 1)
+
+        for i in range(7):
+                pybullet.setJointMotorControl2(robotID1, i, pybullet.POSITION_CONTROL, targetPosition=-right_js[i])
+                pybullet.setJointMotorControl2(robotID2, i, pybullet.POSITION_CONTROL, targetPosition=-left_js[i])
+
         contactPoints0 = pybullet.getContactPoints(robotID1, robotID2)
         #contactPoints1 = pybullet.getContactPoints(robotID1, planeID)
         #contactPoints2 = pybullet.getContactPoints(robotID2, planeID)
         if len(contactPoints0) > 0:
+
+            server.send_multipart([robot_ip, b"True"])
+
             print("Collision detected!")
             break
-        joint_angles1 = robot1.get_servo_angle()[1]
-        joint_angles2 = robot2.get_servo_angle()[1]
-        for i in range(7):
-                pybullet.setJointMotorControl2(robotID1, i, pybullet.POSITION_CONTROL, targetPosition=-joint_angles1[i])
-                pybullet.setJointMotorControl2(robotID2, i, pybullet.POSITION_CONTROL, targetPosition=-joint_angles2[i])
+
+        else:
+            server.send_multipart([robot_ip, b"False"]) 
+
+
+        # joint_angles1 = robot1.get_servo_angle()[1]
+        # joint_angles2 = robot2.get_servo_angle()[1]
+
 
     # close server
     pybullet.disconnect()
